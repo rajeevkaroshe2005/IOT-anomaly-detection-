@@ -373,36 +373,33 @@ export default function Dashboard() {
                 <span>ESTIMATED TIME TO BREACH</span>
               </div>
               <div className="text-xl font-bold mt-1 text-[#242424]">
-                {predictive.highest_risk_node.estimated_minutes_to_breach !== null
-                  ? `${predictive.highest_risk_node.estimated_minutes_to_breach.toFixed(1)} mins`
-                  : 'Stable (>60 min)'}
+                {(() => {
+                  const val = predictive.highest_risk_node?.estimated_minutes_to_breach ?? predictive.highest_risk_node?.minutes_to_breach;
+                  return typeof val === 'number' ? `${val.toFixed(1)} mins` : 'Stable (>60 min)';
+                })()}
               </div>
               <div className="text-xs text-[#686868] mt-2 space-y-0.5">
                 <div>
                   dT/dt:{' '}
-                  <span
-                    className={
-                      predictive.highest_risk_node.temp_velocity_c_per_min > 0
-                        ? 'text-[#C96B32] font-semibold'
-                        : 'text-[#1F5C54]'
-                    }
-                  >
-                    {predictive.highest_risk_node.temp_velocity_c_per_min > 0 ? '+' : ''}
-                    {predictive.highest_risk_node.temp_velocity_c_per_min?.toFixed(2)} °C/min
-                  </span>
+                  {(() => {
+                    const tv = predictive.highest_risk_node?.temp_velocity_c_per_min ?? predictive.highest_risk_node?.temp_velocity ?? 0;
+                    return (
+                      <span className={tv > 0 ? 'text-[#C96B32] font-semibold' : 'text-[#1F5C54]'}>
+                        {tv > 0 ? '+' : ''}{Number(tv).toFixed(2)} °C/min
+                      </span>
+                    );
+                  })()}
                 </div>
                 <div>
                   dP/dt:{' '}
-                  <span
-                    className={
-                      predictive.highest_risk_node.pressure_velocity_hpa_per_min < 0
-                        ? 'text-[#B23A2F] font-semibold'
-                        : 'text-[#1F5C54]'
-                    }
-                  >
-                    {predictive.highest_risk_node.pressure_velocity_hpa_per_min > 0 ? '+' : ''}
-                    {predictive.highest_risk_node.pressure_velocity_hpa_per_min?.toFixed(2)} hPa/min
-                  </span>
+                  {(() => {
+                    const pv = predictive.highest_risk_node?.pressure_velocity_hpa_per_min ?? predictive.highest_risk_node?.press_velocity ?? 0;
+                    return (
+                      <span className={pv < 0 ? 'text-[#B23A2F] font-semibold' : 'text-[#1F5C54]'}>
+                        {pv > 0 ? '+' : ''}{Number(pv).toFixed(2)} hPa/min
+                      </span>
+                    );
+                  })()}
                 </div>
               </div>
             </div>

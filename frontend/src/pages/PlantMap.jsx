@@ -233,7 +233,7 @@ export default function PlantMap() {
                     <span>TEMP</span>
                   </div>
                   <div className="text-xs font-bold text-[#C96B32] mt-0.5">
-                    {s?.temperature !== undefined ? `${s.temperature.toFixed(1)} °C` : '—'}
+                    {s?.temperature != null ? `${Number(s.temperature).toFixed(1)} °C` : '—'}
                   </div>
                 </div>
 
@@ -243,7 +243,7 @@ export default function PlantMap() {
                     <span>HUMIDITY</span>
                   </div>
                   <div className="text-xs font-bold text-[#1F5C54] mt-0.5">
-                    {s?.humidity !== undefined ? `${s.humidity.toFixed(1)} %` : '—'}
+                    {s?.humidity != null ? `${Number(s.humidity).toFixed(1)} %` : '—'}
                   </div>
                 </div>
 
@@ -253,7 +253,7 @@ export default function PlantMap() {
                     <span>PRESSURE</span>
                   </div>
                   <div className="text-xs font-bold text-[#16423C] mt-0.5">
-                    {s?.pressure !== undefined ? `${s.pressure.toFixed(1)}` : '—'}
+                    {s?.pressure != null ? `${Number(s.pressure).toFixed(1)} hPa` : '—'}
                   </div>
                 </div>
               </div>
@@ -317,19 +317,19 @@ export default function PlantMap() {
               <div className="p-3 rounded bg-[#F5F1E8] border border-[#E9E2D3]">
                 <div className="text-[10px] text-[#686868] uppercase">Temperature</div>
                 <div className="text-lg font-bold text-[#C96B32] mt-1">
-                  {selectedSensor.temperature?.toFixed(1)} °C
+                  {selectedSensor.temperature != null ? `${Number(selectedSensor.temperature).toFixed(1)} °C` : '—'}
                 </div>
               </div>
               <div className="p-3 rounded bg-[#F5F1E8] border border-[#E9E2D3]">
                 <div className="text-[10px] text-[#686868] uppercase">Humidity</div>
                 <div className="text-lg font-bold text-[#1F5C54] mt-1">
-                  {selectedSensor.humidity?.toFixed(1)} %
+                  {selectedSensor.humidity != null ? `${Number(selectedSensor.humidity).toFixed(1)} %` : '—'}
                 </div>
               </div>
               <div className="p-3 rounded bg-[#F5F1E8] border border-[#E9E2D3]">
                 <div className="text-[10px] text-[#686868] uppercase">Pressure</div>
                 <div className="text-lg font-bold text-[#16423C] mt-1">
-                  {selectedSensor.pressure?.toFixed(1)} hPa
+                  {selectedSensor.pressure != null ? `${Number(selectedSensor.pressure).toFixed(1)} hPa` : '—'}
                 </div>
               </div>
             </div>
