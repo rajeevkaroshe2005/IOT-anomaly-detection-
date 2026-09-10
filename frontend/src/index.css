@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    background-color: #F5F1E8;
+    color: #242424;
+    font-family: 'Inter', 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+}
+
+/* Industrial SCADA Styling Tokens */
+.font-mono-data {
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: -0.02em;
+}
+
+/* Subtle Industrial Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #E9E2D3;
+}
+::-webkit-scrollbar-thumb {
+  background: #1F5C54;
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #16423C;
+}
+
+/* Pulse indicator for live telemetry */
+@keyframes scada-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.92); }
+}
+
+.scada-live-pulse {
+  animation: scada-pulse 2s infinite ease-in-out;
+}

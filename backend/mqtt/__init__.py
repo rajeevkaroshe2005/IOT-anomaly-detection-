@@ -1,0 +1,6 @@
+"""
+MQTT Ingestion Module
+"""
+from .mqtt_client import mqtt_service
+
+__all__ = ["mqtt_service"]

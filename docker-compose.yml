@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  # 1. Eclipse Mosquitto MQTT Message Broker
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: iot_mosquitto_broker
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - mosquitto_data:/mosquitto/data
+      - mosquitto_log:/mosquitto/log
+
+  # 2. PostgreSQL Relational & Time-Series Ready Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: iot_postgres_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: iot_admin
+      POSTGRES_PASSWORD: iot_secure_password_2026
+      POSTGRES_DB: iot_monitoring_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U iot_admin -d iot_monitoring_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. FastAPI Real-Time Backend & ML Stream Processing Service
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: iot_fastapi_backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mosquitto:
+        condition: service_started
+    environment:
+      - APP_NAME=Cloud-Based IoT Sensor Monitoring & Anomaly Detection System
+      - APP_ENV=production
+      - DEBUG=False
+      - HOST=0.0.0.0
+      - PORT=8000
+      - SECRET_KEY=industrial-iot-secret-key-change-in-production-2026-secure
+      - DATABASE_URL=postgresql://iot_admin:iot_secure_password_2026@postgres:5432/iot_monitoring_db
+      - MQTT_BROKER=mosquitto
+      - MQTT_PORT=1883
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173
+      - SIMULATOR_AUTORUN=True
+    ports:
+      - "8000:8000"
+
+  # 4. React 18 + Vite Industrial SCADA Web Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: iot_react_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "3000:80"
+
+volumes:
+  postgres_data:
+  mosquitto_data:
+  mosquitto_log:
