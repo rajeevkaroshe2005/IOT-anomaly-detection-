@@ -240,6 +240,10 @@ The FastAPI backend automatically generates interactive Swagger/OpenAPI document
 | `DELETE` | `/api/alerts/{id}` | Delete alert record | ADMIN |
 | `GET` | `/api/dashboard/stats` | Retrieve dynamic system metrics and KPI counters | Public |
 | `GET` | `/api/system/health` | Query health probes for all 6 subsystems | Public |
+| `GET` | `/api/predictive/analytics` | Fleet-wide predictive drift ($dT/dt, dP/dt$) & RUL analysis | Public |
+| `GET` | `/api/predictive/sensor/{id}` | Single sensor degradation trajectory & breach forecast | Public |
+| `GET` | `/api/readings/export/csv` | Stream telemetry readings as CSV spreadsheet | Public |
+| `GET` | `/api/anomalies/export/csv` | Stream anomaly audit log as CSV spreadsheet | Public |
 | `POST` | `/api/simulator/start` | Start background sensor fleet simulation | Public / ADMIN |
 | `POST` | `/api/simulator/stop` | Stop background sensor fleet simulation | Public / ADMIN |
 | `POST` | `/api/simulator/force-anomaly`| Instantly inject an outlier for live evaluation | Public / ADMIN |
@@ -247,7 +251,27 @@ The FastAPI backend automatically generates interactive Swagger/OpenAPI document
 
 ---
 
-## 8. Academic Project Demonstration Script (14-Step Flow)
+## 8. Advanced SCADA & Portfolio Enhancements
+
+Beyond standard telemetry dashboards, this system integrates enterprise-grade industrial features:
+1. **Interactive 2D Digital Twin Plant Map (`/plant-map`):**
+   - Spatial layout of industrial zones (Production Floor, Warehouse, Boiler Reactor, Assembly, Storage).
+   - Real-time pulsating radar beacons with live telemetry overlays and zone hazard flares.
+2. **Predictive Maintenance & Time-to-Failure (RUL) Engine:**
+   - Linear drift rate estimation ($\frac{dT}{dt}$ °C/min, $\frac{dP}{dt}$ hPa/min) over rolling time windows.
+   - Dynamic threshold breach extrapolation calculating exact minutes before catastrophic thermal/pressure limits are crossed.
+   - Component health degradation index ($0\%-100\%$) with prescriptive operational action advisories.
+3. **Synthesized Web Audio API SCADA Alarm Buzzer:**
+   - Dual-tone ($880\text{ Hz} \leftrightarrow 440\text{ Hz}$) pulsing audio alert triggered automatically on critical anomaly detection.
+   - Global mute/unmute control in the application header with persistent sound settings.
+4. **One-Click Telemetry & Incident CSV Exporter:**
+   - Direct streaming CSV export for both sensor telemetry readings and ML anomaly audit logs.
+5. **Automated GitHub Actions CI/CD Pipeline (`.github/workflows/ci.yml`):**
+   - Automated continuous integration running backend diagnostics, ML model loading checks, and frontend Vite production builds.
+
+---
+
+## 9. Academic Project Demonstration Script (14-Step Flow)
 
 To execute the live 10-mark examination demonstration:
 

@@ -11,11 +11,13 @@ import {
   ShieldCheck,
   Sliders,
   Radio,
-  ChevronRight
+  ChevronRight,
+  Map
 } from 'lucide-react';
 
 const NAV_ITEMS = [
   { name: 'Dashboard', path: '/', icon: LayoutDashboard },
+  { name: 'Plant Map (Twin)', path: '/plant-map', icon: Map },
   { name: 'Sensors', path: '/sensors', icon: Cpu },
   { name: 'Live Monitoring', path: '/monitoring', icon: Activity },
   { name: 'Anomalies', path: '/anomalies', icon: AlertTriangle },

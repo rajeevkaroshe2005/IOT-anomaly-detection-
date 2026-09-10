@@ -8,9 +8,10 @@ import {
   Clock,
   Thermometer,
   Droplets,
-  Gauge
+  Gauge,
+  Download
 } from 'lucide-react';
-import { anomaliesAPI, sensorsAPI } from '../services/api';
+import { anomaliesAPI, sensorsAPI, exportAPI } from '../services/api';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -85,6 +86,16 @@ export default function Anomalies() {
         </div>
 
         <div className="flex items-center space-x-3">
+          <a
+            href={exportAPI.getAnomaliesCsvUrl(selectedSensorId || null)}
+            target="_blank"
+            rel="noopener noreferrer"
+            download="anomalies_export.csv"
+            className="flex items-center space-x-1 px-3 py-1.5 rounded bg-[#16423C] text-[#F5F1E8] text-xs hover:bg-[#1F5C54] transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 text-[#D99A2B]" />
+            <span>EXPORT CSV</span>
+          </a>
           <button
             onClick={fetchAnomalies}
             className="flex items-center space-x-1 px-3 py-1.5 rounded bg-[#F0EBE1] border border-[#E9E2D3] text-xs text-[#242424] hover:bg-[#E9E2D3]"

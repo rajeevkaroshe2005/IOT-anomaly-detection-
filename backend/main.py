@@ -40,6 +40,7 @@ from backend.routes.alerts import router as alerts_router
 from backend.routes.dashboard import router as dashboard_router
 from backend.routes.system import router as system_router
 from backend.routes.simulator import router as simulator_router
+from backend.routes.predictive import router as predictive_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -105,6 +106,7 @@ app.include_router(alerts_router)
 app.include_router(dashboard_router)
 app.include_router(system_router)
 app.include_router(simulator_router)
+app.include_router(predictive_router)
 
 # WebSocket Real-Time Telemetry Endpoint
 @app.websocket("/ws/sensor-data")

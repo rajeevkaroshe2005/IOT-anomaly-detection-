@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Menu, Play, Square, Bell, User, LogOut, Clock, Activity } from 'lucide-react';
+import { Menu, Play, Square, Bell, User, LogOut, Clock, Activity, Volume2, VolumeX } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useWebSocket } from '../context/WebSocketContext';
 import { simulatorAPI, dashboardAPI } from '../services/api';
+import { scadaAudio } from '../utils/audioAlert';
 
 export default function Header({ setIsSidebarOpen }) {
   const { user, logout, isAdmin } = useAuth();
@@ -14,6 +15,7 @@ export default function Header({ setIsSidebarOpen }) {
   const [simLoading, setSimLoading] = useState(false);
   const [activeAlertCount, setActiveAlertCount] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [soundEnabled, setSoundEnabled] = useState(scadaAudio.isEnabled());
 
   // Clock ticker
   useEffect(() => {
@@ -130,6 +132,26 @@ export default function Header({ setIsSidebarOpen }) {
           <span className="font-bold">{activeAlertCount}</span>
           <span className="hidden sm:inline">ALERTS</span>
         </Link>
+
+        {/* SCADA Industrial Audio Alarm Toggle */}
+        <button
+          onClick={() => setSoundEnabled(scadaAudio.toggleSound())}
+          className={`flex items-center space-x-1 px-2.5 py-1 rounded text-xs font-mono-data border transition-colors ${
+            soundEnabled
+              ? 'bg-[#1F5C54]/10 text-[#1F5C54] border-[#1F5C54]/30 hover:bg-[#1F5C54]/20'
+              : 'bg-[#F0EBE1] text-[#686868] border-[#E9E2D3] hover:bg-[#E9E2D3]'
+          }`}
+          title={soundEnabled ? 'SCADA Alarm Audio: Active (Click to Mute)' : 'SCADA Alarm Audio: Muted (Click to Enable)'}
+        >
+          {soundEnabled ? (
+            <Volume2 className="w-3.5 h-3.5 text-[#1F5C54]" />
+          ) : (
+            <VolumeX className="w-3.5 h-3.5 text-[#686868]" />
+          )}
+          <span className="hidden xl:inline text-[10px] font-bold">
+            {soundEnabled ? 'ALARM ON' : 'MUTED'}
+          </span>
+        </button>
 
         {/* User Session Profile Chip */}
         <div className="flex items-center space-x-2 border-l border-[#E9E2D3] pl-4">

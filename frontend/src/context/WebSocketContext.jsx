@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
+import { scadaAudio } from '../utils/audioAlert';
 
 const WebSocketContext = createContext(null);
 
@@ -45,6 +46,7 @@ export const WebSocketProvider = ({ children }) => {
             setLiveStream((prev) => [data, ...prev.slice(0, 49)]);
           } else if (eventType === 'ANOMALY_DETECTED') {
             setLatestAnomaly(data);
+            scadaAudio.triggerCriticalAlarm();
             setNotification({
               id: Date.now(),
               type: 'CRITICAL',

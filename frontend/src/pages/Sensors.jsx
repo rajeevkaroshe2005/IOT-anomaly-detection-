@@ -14,9 +14,10 @@ import {
   Droplets,
   Gauge,
   X,
-  Check
+  Check,
+  Download
 } from 'lucide-react';
-import { sensorsAPI } from '../services/api';
+import { sensorsAPI, exportAPI } from '../services/api';
 import { useWebSocket } from '../context/WebSocketContext';
 import { useAuth } from '../context/AuthContext';
 
@@ -157,6 +158,17 @@ export default function Sensors() {
         </div>
 
         <div className="flex items-center space-x-3">
+          <a
+            href={exportAPI.getReadingsCsvUrl()}
+            target="_blank"
+            rel="noopener noreferrer"
+            download="telemetry_readings.csv"
+            className="flex items-center space-x-1 px-3 py-1.5 rounded bg-[#16423C] text-[#F5F1E8] text-xs font-mono-data hover:bg-[#1F5C54] transition-colors"
+          >
+            <Download className="w-3.5 h-3.5 text-[#D99A2B]" />
+            <span>EXPORT CSV</span>
+          </a>
+
           <button
             onClick={fetchSensors}
             className="flex items-center space-x-1 px-3 py-1.5 rounded bg-[#F0EBE1] border border-[#E9E2D3] text-xs font-mono-data text-[#242424] hover:bg-[#E9E2D3]"

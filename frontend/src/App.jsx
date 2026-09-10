@@ -15,6 +15,7 @@ import Architecture from './pages/Architecture';
 import SystemHealth from './pages/SystemHealth';
 import Admin from './pages/Admin';
 import Settings from './pages/Settings';
+import PlantMap from './pages/PlantMap';
 import Login from './pages/Login';
 
 // Protected Route Component
@@ -43,6 +44,7 @@ export default function App() {
               }
             >
               <Route index element={<Dashboard />} />
+              <Route path="plant-map" element={<PlantMap />} />
               <Route path="sensors" element={<Sensors />} />
               <Route path="sensors/:id" element={<SensorDetail />} />
               <Route path="monitoring" element={<LiveMonitoring />} />

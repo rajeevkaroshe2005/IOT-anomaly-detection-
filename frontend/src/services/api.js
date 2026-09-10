@@ -86,4 +86,20 @@ export const simulatorAPI = {
   forceAnomaly: (deviceId) => api.post('/api/simulator/force-anomaly', { device_id: deviceId }),
 };
 
+export const predictiveAPI = {
+  getAnalytics: () => api.get('/api/predictive/analytics'),
+  getSensorPrediction: (id) => api.get(`/api/predictive/sensor/${id}`),
+};
+
+export const exportAPI = {
+  getReadingsCsvUrl: (sensorId = null) => {
+    const base = `${API_BASE_URL}/api/readings/export/csv`;
+    return sensorId ? `${base}?sensor_id=${sensorId}` : base;
+  },
+  getAnomaliesCsvUrl: (sensorId = null) => {
+    const base = `${API_BASE_URL}/api/anomalies/export/csv`;
+    return sensorId ? `${base}?sensor_id=${sensorId}` : base;
+  }
+};
+
 export default api;

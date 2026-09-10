@@ -39,3 +39,56 @@ def acknowledge_anomaly(anomaly_id: int, db: Session = Depends(get_db), admin: U
     db.commit()
     db.refresh(anomaly)
     return anomaly.to_dict()
+
+@router.get("/export/csv")
+def export_anomalies_csv(
+    sensor_id: Optional[int] = Query(None),
+    severity: Optional[str] = Query(None),
+    limit: int = Query(500, ge=1, le=5000),
+    db: Session = Depends(get_db)
+):
+    """Exports detected anomalies to downloadable CSV format."""
+    import io
+    import csv
+    from datetime import datetime, timezone
+    from fastapi.responses import Response
+
+    query = db.query(Anomaly)
+    if sensor_id is not None:
+        query = query.filter(Anomaly.sensor_id == sensor_id)
+    if severity:
+        query = query.filter(Anomaly.severity == severity.upper())
+
+    anomalies = query.order_by(desc(Anomaly.timestamp)).limit(limit).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Anomaly_ID", "Device_ID", "Sensor_Name", "Location",
+        "Temperature_C", "Humidity_Pct", "Pressure_hPa",
+        "Anomaly_Score", "Severity", "Reason", "Timestamp_UTC", "Acknowledged"
+    ])
+
+    for a in anomalies:
+        writer.writerow([
+            a.id,
+            a.sensor.device_id if a.sensor else "",
+            a.sensor.name if a.sensor else "",
+            a.sensor.location if a.sensor else "",
+            a.temperature,
+            a.humidity,
+            a.pressure,
+            a.anomaly_score,
+            a.severity,
+            a.reason or "",
+            a.timestamp.isoformat() if a.timestamp else "",
+            a.acknowledged
+        ])
+
+    csv_content = output.getvalue()
+    filename = f"industrial_anomalies_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )

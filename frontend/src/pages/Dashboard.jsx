@@ -13,9 +13,12 @@ import {
   ArrowRight,
   ShieldCheck,
   RefreshCw,
-  Bell
+  Bell,
+  Clock,
+  TrendingUp,
+  Map
 } from 'lucide-react';
-import { dashboardAPI, sensorsAPI, alertsAPI } from '../services/api';
+import { dashboardAPI, sensorsAPI, alertsAPI, predictiveAPI } from '../services/api';
 import { useWebSocket } from '../context/WebSocketContext';
 
 export default function Dashboard() {
@@ -33,18 +36,23 @@ export default function Dashboard() {
   });
   const [sensors, setSensors] = useState([]);
   const [recentAlerts, setRecentAlerts] = useState([]);
+  const [predictive, setPredictive] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
     try {
-      const [statsRes, sensorsRes, alertsRes] = await Promise.all([
+      const [statsRes, sensorsRes, alertsRes, predRes] = await Promise.all([
         dashboardAPI.getStats(),
         sensorsAPI.getAll(),
         alertsAPI.getAll({ limit: 5, status: 'ACTIVE' }),
+        predictiveAPI.getAnalytics().catch(() => ({ data: null })),
       ]);
       setStats(statsRes.data);
       setSensors(sensorsRes.data);
       setRecentAlerts(alertsRes.data);
+      if (predRes && predRes.data) {
+        setPredictive(predRes.data);
+      }
     } catch (err) {
       console.error('Error fetching dashboard data:', err);
     } finally {
@@ -128,6 +136,13 @@ export default function Dashboard() {
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
             <span>REFRESH</span>
           </button>
+          <Link
+            to="/plant-map"
+            className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#1F5C54] text-[#F5F1E8] text-xs font-mono-data font-semibold hover:bg-[#16423C] transition-colors"
+          >
+            <Map className="w-3.5 h-3.5 text-[#D99A2B]" />
+            <span>DIGITAL TWIN MAP</span>
+          </Link>
           <Link
             to="/architecture"
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[#16423C] text-[#F5F1E8] text-xs font-mono-data font-semibold hover:bg-[#1F5C54] transition-colors"
@@ -288,6 +303,132 @@ export default function Dashboard() {
         ) : (
           <div className="py-6 text-center text-xs font-mono-data text-[#686868]">
             Awaiting incoming telemetry packets... Start the simulator or publish via MQTT.
+          </div>
+        )}
+      </div>
+
+      {/* Predictive Maintenance & Early Warning Card */}
+      <div className="bg-[#FFFFFF] border border-[#E9E2D3] rounded shadow-industrial p-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-[#E9E2D3] pb-3 mb-4 gap-2">
+          <div className="flex items-center space-x-2">
+            <TrendingUp className="w-5 h-5 text-[#C96B32]" />
+            <div>
+              <h2 className="text-sm font-bold uppercase font-mono-data text-[#16423C] tracking-wide">
+                Predictive Maintenance & Time-to-Failure (RUL) Forecasting
+              </h2>
+              <p className="text-[11px] text-[#686868]">
+                Dynamic linear trend analysis (dT/dt, dP/dt) & predictive threshold breach estimation
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center space-x-2">
+            <span className="text-[11px] font-mono-data text-[#686868]">FLEET RISK:</span>
+            <span
+              className={`px-2.5 py-1 text-xs font-mono-data font-bold rounded ${
+                predictive?.fleet_risk_status === 'CRITICAL'
+                  ? 'bg-[#B23A2F]/15 text-[#B23A2F] border border-[#B23A2F]'
+                  : predictive?.fleet_risk_status === 'WARNING'
+                  ? 'bg-[#D99A2B]/15 text-[#D99A2B] border border-[#D99A2B]'
+                  : 'bg-[#2E7D32]/15 text-[#2E7D32] border border-[#2E7D32]'
+              }`}
+            >
+              {predictive?.fleet_risk_status || 'NOMINAL'}
+            </span>
+          </div>
+        </div>
+
+        {predictive?.highest_risk_node ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 font-mono-data">
+            {/* Critical Node Overview */}
+            <div className="p-4 bg-[#F0EBE1]/50 rounded border border-[#E9E2D3]">
+              <div className="text-[10px] text-[#686868] uppercase font-semibold">
+                HIGHEST RISK FLEET COMPONENT
+              </div>
+              <div className="text-base font-bold text-[#16423C] mt-1">
+                {predictive.highest_risk_node.device_id}
+              </div>
+              <div className="text-xs text-[#686868] mt-0.5">
+                {predictive.highest_risk_node.location}
+              </div>
+              <div className="mt-3 flex items-center space-x-2">
+                <span className="text-[11px] text-[#686868]">STATUS:</span>
+                <span
+                  className={`text-xs font-bold ${
+                    predictive.highest_risk_node.risk_level === 'CRITICAL'
+                      ? 'text-[#B23A2F]'
+                      : predictive.highest_risk_node.risk_level === 'WARNING'
+                      ? 'text-[#D99A2B]'
+                      : 'text-[#2E7D32]'
+                  }`}
+                >
+                  {predictive.highest_risk_node.risk_level}
+                </span>
+              </div>
+            </div>
+
+            {/* Velocity & Estimated Time to Failure */}
+            <div className="p-4 bg-[#F0EBE1]/50 rounded border border-[#E9E2D3]">
+              <div className="text-[10px] text-[#686868] uppercase font-semibold flex items-center space-x-1">
+                <Clock className="w-3.5 h-3.5 text-[#C96B32]" />
+                <span>ESTIMATED TIME TO BREACH</span>
+              </div>
+              <div className="text-xl font-bold mt-1 text-[#242424]">
+                {predictive.highest_risk_node.estimated_minutes_to_breach !== null
+                  ? `${predictive.highest_risk_node.estimated_minutes_to_breach.toFixed(1)} mins`
+                  : 'Stable (>60 min)'}
+              </div>
+              <div className="text-xs text-[#686868] mt-2 space-y-0.5">
+                <div>
+                  dT/dt:{' '}
+                  <span
+                    className={
+                      predictive.highest_risk_node.temp_velocity_c_per_min > 0
+                        ? 'text-[#C96B32] font-semibold'
+                        : 'text-[#1F5C54]'
+                    }
+                  >
+                    {predictive.highest_risk_node.temp_velocity_c_per_min > 0 ? '+' : ''}
+                    {predictive.highest_risk_node.temp_velocity_c_per_min?.toFixed(2)} °C/min
+                  </span>
+                </div>
+                <div>
+                  dP/dt:{' '}
+                  <span
+                    className={
+                      predictive.highest_risk_node.pressure_velocity_hpa_per_min < 0
+                        ? 'text-[#B23A2F] font-semibold'
+                        : 'text-[#1F5C54]'
+                    }
+                  >
+                    {predictive.highest_risk_node.pressure_velocity_hpa_per_min > 0 ? '+' : ''}
+                    {predictive.highest_risk_node.pressure_velocity_hpa_per_min?.toFixed(2)} hPa/min
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Prescriptive SCADA Action */}
+            <div className="p-4 bg-[#F0EBE1]/50 rounded border border-[#E9E2D3] flex flex-col justify-between">
+              <div>
+                <div className="text-[10px] text-[#686868] uppercase font-semibold">
+                  PRESCRIPTIVE ACTION ADVISORY
+                </div>
+                <p className="text-xs text-[#242424] mt-2 leading-relaxed">
+                  {predictive.highest_risk_node.recommendation}
+                </p>
+              </div>
+              <Link
+                to={`/sensors/${predictive.highest_risk_node.sensor_id}`}
+                className="mt-3 inline-flex items-center space-x-1 text-xs font-semibold text-[#16423C] hover:text-[#1F5C54]"
+              >
+                <span>Inspect Node Telemetry</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+        ) : (
+          <div className="py-4 text-center text-xs font-mono-data text-[#686868]">
+            Telemetry gradients nominal. All plant nodes operating within standard safety tolerances.
           </div>
         )}
       </div>

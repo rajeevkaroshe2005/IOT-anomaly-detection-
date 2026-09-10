@@ -77,3 +77,50 @@ def direct_ingest_reading(reading: SensorReadingCreate):
             detail="Pipeline rejected payload: validation or database failure."
         )
     return {"status": "ingested", "data": result}
+
+@router.get("/export/csv")
+def export_readings_csv(
+    sensor_id: Optional[int] = Query(None),
+    limit: int = Query(500, ge=1, le=5000),
+    db: Session = Depends(get_db)
+):
+    """Exports sensor telemetry to downloadable CSV format."""
+    import io
+    import csv
+    from fastapi.responses import Response
+
+    query = db.query(SensorReading)
+    if sensor_id is not None:
+        query = query.filter(SensorReading.sensor_id == sensor_id)
+    
+    readings = query.order_by(desc(SensorReading.timestamp)).limit(limit).all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow([
+        "Reading_ID", "Device_ID", "Sensor_Name", "Location",
+        "Temperature_C", "Humidity_Pct", "Pressure_hPa",
+        "Timestamp_UTC", "Is_Anomaly", "Anomaly_Score"
+    ])
+
+    for r in readings:
+        writer.writerow([
+            r.id,
+            r.sensor.device_id if r.sensor else "",
+            r.sensor.name if r.sensor else "",
+            r.sensor.location if r.sensor else "",
+            r.temperature,
+            r.humidity,
+            r.pressure,
+            r.timestamp.isoformat() if r.timestamp else "",
+            r.is_anomaly,
+            r.anomaly_score
+        ])
+
+    csv_content = output.getvalue()
+    filename = f"sensor_telemetry_export_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv"
+    return Response(
+        content=csv_content,
+        media_type="text/csv",
+        headers={"Content-Disposition": f"attachment; filename={filename}"}
+    )
