@@ -10,7 +10,7 @@ import logging
 from sqlalchemy.orm import Session
 from .database import Base, engine, SessionLocal
 from .models import User, Sensor, SensorReading, Anomaly, Alert, SystemLog
-from backend.services.auth_service import get_password_hash
+from backend.services.security import get_password_hash
 
 logger = logging.getLogger("iot.seed")
 
