@@ -93,12 +93,22 @@ export const predictiveAPI = {
 
 export const exportAPI = {
   getReadingsCsvUrl: (sensorId = null) => {
+    const token = localStorage.getItem('iot_token');
     const base = `${API_BASE_URL}/api/readings/export/csv`;
-    return sensorId ? `${base}?sensor_id=${sensorId}` : base;
+    const params = new URLSearchParams();
+    if (sensorId) params.append('sensor_id', sensorId);
+    if (token) params.append('token', token);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
   },
   getAnomaliesCsvUrl: (sensorId = null) => {
+    const token = localStorage.getItem('iot_token');
     const base = `${API_BASE_URL}/api/anomalies/export/csv`;
-    return sensorId ? `${base}?sensor_id=${sensorId}` : base;
+    const params = new URLSearchParams();
+    if (sensorId) params.append('sensor_id', sensorId);
+    if (token) params.append('token', token);
+    const qs = params.toString();
+    return qs ? `${base}?${qs}` : base;
   }
 };
 

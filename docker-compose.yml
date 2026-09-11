@@ -1,34 +1,43 @@
 version: '3.8'
 
+networks:
+  iot_network:
+    driver: bridge
+    name: iot_internal_network
+
 services:
-  # 1. Eclipse Mosquitto MQTT Message Broker
+  # 1. Eclipse Mosquitto MQTT Message Broker (Authenticated)
   mosquitto:
     image: eclipse-mosquitto:2.0
     container_name: iot_mosquitto_broker
     restart: unless-stopped
+    networks:
+      - iot_network
     ports:
-      - "1883:1883"
-      - "9001:9001"
+      - "${MQTT_PORT:-1883}:1883"
     volumes:
       - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf
+      - ./mosquitto/password_file:/mosquitto/config/password_file
+      - ./mosquitto/acl_file:/mosquitto/config/acl_file
       - mosquitto_data:/mosquitto/data
       - mosquitto_log:/mosquitto/log
 
-  # 2. PostgreSQL Relational & Time-Series Ready Database
+  # 2. PostgreSQL Relational & Time-Series Database (Internal Network Only)
   postgres:
     image: postgres:16-alpine
     container_name: iot_postgres_db
     restart: unless-stopped
+    networks:
+      - iot_network
     environment:
-      POSTGRES_USER: iot_admin
-      POSTGRES_PASSWORD: iot_secure_password_2026
-      POSTGRES_DB: iot_monitoring_db
-    ports:
-      - "5432:5432"
+      POSTGRES_USER: ${POSTGRES_USER:-iot_admin}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot_secure_password_2026}
+      POSTGRES_DB: ${POSTGRES_DB:-iot_monitoring_db}
+    # Database is strictly isolated on iot_network (no host port 5432 exposed)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U iot_admin -d iot_monitoring_db"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot_admin} -d ${POSTGRES_DB:-iot_monitoring_db}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -40,22 +49,26 @@ services:
       dockerfile: backend/Dockerfile
     container_name: iot_fastapi_backend
     restart: unless-stopped
+    networks:
+      - iot_network
     depends_on:
       postgres:
         condition: service_healthy
       mosquitto:
         condition: service_started
     environment:
-      - APP_NAME=Cloud-Based IoT Sensor Monitoring & Anomaly Detection System
+      - APP_NAME=${APP_NAME:-Cloud-Based IoT Sensor Monitoring & Anomaly Detection System}
       - APP_ENV=production
       - DEBUG=False
       - HOST=0.0.0.0
       - PORT=8000
-      - SECRET_KEY=industrial-iot-secret-key-change-in-production-2026-secure
-      - DATABASE_URL=postgresql://iot_admin:iot_secure_password_2026@postgres:5432/iot_monitoring_db
+      - SECRET_KEY=${SECRET_KEY}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-iot_admin}:${POSTGRES_PASSWORD:-iot_secure_password_2026}@postgres:5432/${POSTGRES_DB:-iot_monitoring_db}
       - MQTT_BROKER=mosquitto
       - MQTT_PORT=1883
-      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://127.0.0.1:3000,http://127.0.0.1:5173
+      - MQTT_USERNAME=${MQTT_USERNAME:-iot_backend}
+      - MQTT_PASSWORD=${MQTT_PASSWORD:-iot_backend_password_2026}
+      - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174
       - SIMULATOR_AUTORUN=True
     ports:
       - "8000:8000"
@@ -67,6 +80,8 @@ services:
       dockerfile: Dockerfile
     container_name: iot_react_frontend
     restart: unless-stopped
+    networks:
+      - iot_network
     depends_on:
       - backend
     ports:

@@ -6,9 +6,22 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(() => {
     const saved = localStorage.getItem('iot_user');
-    return saved ? JSON.parse(saved) : { username: 'admin', role: 'ADMIN' }; // Default pre-authenticated admin for smooth testing
+    const savedToken = localStorage.getItem('iot_token');
+    if (savedToken === 'demo_token') {
+      localStorage.removeItem('iot_token');
+      localStorage.removeItem('iot_user');
+      return null;
+    }
+    return saved ? JSON.parse(saved) : null;
   });
-  const [token, setToken] = useState(() => localStorage.getItem('iot_token') || 'demo_token');
+  const [token, setToken] = useState(() => {
+    const savedToken = localStorage.getItem('iot_token');
+    if (savedToken === 'demo_token') {
+      localStorage.removeItem('iot_token');
+      return null;
+    }
+    return savedToken || null;
+  });
   const [loading, setLoading] = useState(false);
 
   const login = async (username, password) => {

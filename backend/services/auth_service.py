@@ -19,25 +19,23 @@ from backend.services.security import (
     ACCESS_TOKEN_EXPIRE_MINUTES,
     verify_password,
     get_password_hash,
-    create_access_token
+    create_access_token,
+    decode_access_token
 )
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login", auto_error=False)
 
 def get_current_user(token: Optional[str] = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> Optional[User]:
-    """Extract and validate current authenticated user. Returns None if unauthenticated."""
+    """Extract and validate current authenticated user via signed cryptographic JWT. Returns None if unauthenticated."""
     if not token:
         return None
-    if token == "demo_token":
-        admin_user = db.query(User).filter(User.username == "admin").first()
-        if admin_user:
-            return admin_user
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username: str = payload.get("sub")
-        if username is None:
-            return None
-    except jwt.PyJWTError:
+
+    payload = decode_access_token(token)
+    if not payload:
+        return None
+
+    username: str = payload.get("sub")
+    if not username:
         return None
 
     user = db.query(User).filter(User.username == username).first()
@@ -61,3 +59,15 @@ def require_admin(current_user: User = Depends(require_auth)) -> User:
             detail="Administrative privileges required to perform this action.",
         )
     return current_user
+
+def get_user_from_token_str(token_str: Optional[str], db: Session) -> Optional[User]:
+    """Helper to validate a token string (from query param, header, or websocket)."""
+    if not token_str:
+        return None
+    payload = decode_access_token(token_str)
+    if not payload:
+        return None
+    username: str = payload.get("sub")
+    if not username:
+        return None
+    return db.query(User).filter(User.username == username).first()

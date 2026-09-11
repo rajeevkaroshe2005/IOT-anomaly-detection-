@@ -1,0 +1,16 @@
+# Mosquitto Access Control List (ACL)
+# Enforces Principle of Least Privilege across MQTT telemetry channels.
+
+# Sensor Fleet / Edge Simulators:
+# Can ONLY publish telemetry to individual sensor topics.
+# Forbidden from subscribing to topics or accessing administrative channels.
+user iot_simulator
+topic write iot/sensors/+
+
+# Backend Ingestion & Stream Processing Service:
+# Subscribes to telemetry stream from all sensors.
+# Permitted to publish to device control and notification topics.
+user iot_backend
+topic read iot/sensors/#
+topic readwrite iot/control/#
+topic readwrite iot/alerts/#

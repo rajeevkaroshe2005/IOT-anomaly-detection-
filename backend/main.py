@@ -7,11 +7,13 @@ import os
 import sys
 import asyncio
 import logging
+from typing import Optional
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from backend.services.security import decode_access_token
 
 # Ensure project root is in sys.path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
@@ -110,11 +112,23 @@ app.include_router(predictive_router)
 
 # WebSocket Real-Time Telemetry Endpoint
 @app.websocket("/ws/sensor-data")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket, token: Optional[str] = Query(None)):
     """
     Real-Time WebSocket Channel:
     Streams live sensor telemetry, anomaly detections, alerts, and system state directly to connected web clients.
+    Secured with signed JWT token query parameter. Unauthenticated connections are closed with code 1008 (Policy Violation).
     """
+    if not token:
+        logger.warning("WebSocket handshake rejected: missing authentication token")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    payload = decode_access_token(token)
+    if not payload or not payload.get("sub"):
+        logger.warning("WebSocket handshake rejected: invalid or expired token")
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
     await ws_manager.connect(websocket)
     try:
         while True:

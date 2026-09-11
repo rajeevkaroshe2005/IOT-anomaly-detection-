@@ -1,8 +1,27 @@
 """
 Real-Time Machine Learning Anomaly Detection Service
-Algorithm: Isolation Forest
-Features: Temperature, Humidity, Pressure
-Outputs: Is Anomaly (bool), Anomaly Status (NORMAL/ANOMALY), Anomaly Score (float 0.0 - 1.0), Severity (LOW/MEDIUM/HIGH/CRITICAL)
+Algorithm: Isolation Forest (Unsupervised Learning)
+
+Why Unsupervised Learning:
+  In real-world industrial IoT environments, ground truth anomaly labels are virtually nonexistent,
+  costly to obtain, or highly delayed. Anomalies often represent novel equipment failure modes never
+  seen during factory commissioning. Unsupervised Isolation Forest does not require labeled datasets.
+  Instead, it operates on the mathematical premise that anomalies are 'few and different'. By randomly
+  selecting features and partitioning values, outlier points become isolated at significantly shallower
+  tree depths in the ensemble of isolation trees (iTrees) compared to nominal cluster points.
+
+Features:
+  - Temperature (°C)
+  - Relative Humidity (%)
+  - Atmospheric Pressure (hPa)
+
+Outputs:
+  - is_anomaly (bool)
+  - status ("NORMAL" | "ANOMALY")
+  - anomaly_score (normalized float 0.0 - 1.0, where >=0.6 indicates anomalous behavior)
+  - raw_decision_score (float, Scikit-learn score_samples)
+  - severity ("NORMAL" | "LOW" | "MEDIUM" | "HIGH" | "CRITICAL")
+  - reason (diagnostic string)
 """
 
 import os
@@ -128,3 +147,6 @@ class AnomalyDetector:
 
 # Global singleton instance
 ml_detector = AnomalyDetector()
+
+# Explicit algorithmic alias for CI/CD pipeline and backwards compatibility
+IsolationForestDetector = AnomalyDetector

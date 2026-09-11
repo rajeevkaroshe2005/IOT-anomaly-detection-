@@ -72,13 +72,17 @@ class IoTSensorSimulator:
         port=1883,
         interval=1.5,
         anomaly_rate=0.10,
-        api_fallback_url="http://localhost:8000/api/readings/ingest"
+        api_fallback_url="http://localhost:8000/api/readings/ingest",
+        username=None,
+        password=None
     ):
         self.broker = broker
         self.port = port
         self.interval = interval
         self.anomaly_rate = anomaly_rate
         self.api_fallback_url = api_fallback_url
+        self.username = username if username is not None else os.getenv("MQTT_USERNAME", "iot_simulator").strip()
+        self.password = password if password is not None else os.getenv("MQTT_PASSWORD", "iot_simulator_password_2026").strip()
 
         self.mqtt_connected = False
         self.is_running = False
@@ -106,6 +110,9 @@ class IoTSensorSimulator:
                 )
             else:
                 self.client = mqtt.Client(client_id="iot_simulator_publisher")
+
+            if self.username and self.password:
+                self.client.username_pw_set(self.username, self.password)
 
             self.client.on_connect = self._on_connect
             self.client.on_disconnect = self._on_disconnect
@@ -250,12 +257,16 @@ if __name__ == "__main__":
     parser.add_argument("--interval", type=float, default=1.5, help="Publish interval in seconds")
     parser.add_argument("--anomaly-rate", type=float, default=0.10, help="Probability of anomaly (0.0 to 1.0)")
     parser.add_argument("--count", type=int, default=None, help="Maximum number of cycles to run")
+    parser.add_argument("--username", default=None, help="MQTT username")
+    parser.add_argument("--password", default=None, help="MQTT password")
     args = parser.parse_args()
 
     sim = IoTSensorSimulator(
         broker=args.broker,
         port=args.port,
         interval=args.interval,
-        anomaly_rate=args.anomaly_rate
+        anomaly_rate=args.anomaly_rate,
+        username=args.username,
+        password=args.password
     )
     sim.run(max_readings=args.count)

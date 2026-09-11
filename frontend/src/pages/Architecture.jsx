@@ -213,38 +213,57 @@ export default function Architecture() {
         </div>
       </div>
 
-      {/* Cloud Scalability Section (Prompt Requirement 18) */}
+      {/* Cloud Scalability Section (Prompt Requirement: Current vs Production Architecture) */}
       <div className="bg-[#FFFFFF] border border-[#E9E2D3] p-6 rounded shadow-industrial space-y-6">
         <div className="flex items-center space-x-2 border-b border-[#E9E2D3] pb-3">
           <Boxes className="w-5 h-5 text-[#16423C]" />
           <h2 className="text-sm font-bold text-[#16423C] uppercase tracking-wider">
-            Cloud Scalability: Scaling From Prototype to Millions of Sensors
+            Cloud Scalability: Local Prototype vs. Production Cloud Architecture
           </h2>
         </div>
 
+        {/* Concrete Scaling Numbers Banner */}
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="p-3 bg-[#F5F1E8] border border-[#E9E2D3] rounded">
+            <div className="text-[10px] uppercase font-bold text-[#686868]">Current Prototype Throughput</div>
+            <div className="text-base font-bold text-[#16423C] mt-0.5">100 – 500 msg/sec</div>
+            <div className="text-[10px] text-[#686868] mt-1">Single-node Uvicorn + Mosquitto</div>
+          </div>
+          <div className="p-3 bg-[#F5F1E8] border border-[#E9E2D3] rounded">
+            <div className="text-[10px] uppercase font-bold text-[#686868]">Production Cloud Target</div>
+            <div className="text-base font-bold text-[#2E7D32] mt-0.5">10,000 – 100,000+ msg/sec</div>
+            <div className="text-[10px] text-[#686868] mt-1">Kafka/Kinesis + HPA microservices</div>
+          </div>
+          <div className="p-3 bg-[#F5F1E8] border border-[#E9E2D3] rounded">
+            <div className="text-[10px] uppercase font-bold text-[#686868]">Auto-Scaling Triggers</div>
+            <div className="text-base font-bold text-[#D99A2B] mt-0.5">CPU &gt; 70% | Queue &gt; 1,000</div>
+            <div className="text-[10px] text-[#686868] mt-1">HPA + KEDA Lag-based scaling</div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-xs">
-          {/* Academic Prototype */}
+          {/* Current Prototype */}
           <div className="p-4 rounded border border-[#E9E2D3] bg-[#F5F1E8]/60 space-y-3">
             <div className="flex items-center justify-between font-bold text-[#16423C]">
-              <span>CURRENT ACADEMIC PROTOTYPE</span>
-              <span className="px-2 py-0.5 rounded bg-[#16423C] text-white text-[10px]">LOCAL / LAB</span>
+              <span>CURRENT LOCAL / LAB IMPLEMENTATION</span>
+              <span className="px-2 py-0.5 rounded bg-[#16423C] text-white text-[10px]">CURRENT SYSTEM</span>
             </div>
             <ul className="space-y-2 text-[#242424]">
               <li className="flex items-start space-x-2">
                 <span className="text-[#1F5C54] font-bold">•</span>
-                <span><strong>Broker:</strong> Single-node Eclipse Mosquitto instance on port 1883 with local direct stream fallback.</span>
+                <span><strong>Broker:</strong> Single-node Eclipse Mosquitto on port 1883 with PBKDF2-SHA512 password file and strict topic ACLs.</span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="text-[#1F5C54] font-bold">•</span>
-                <span><strong>Stream Processing:</strong> In-process Python validator with asynchronous execution loop.</span>
+                <span><strong>Stream Processing:</strong> In-process Python Paho thread feeding async queue with direct event loop dispatch.</span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="text-[#1F5C54] font-bold">•</span>
-                <span><strong>Database:</strong> SQLite database with WAL journaling (seamless zero-config local run) or PostgreSQL.</span>
+                <span><strong>Database:</strong> PostgreSQL with composite time-series indexes on `(sensor_id, timestamp)` or SQLite WAL fallback.</span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="text-[#1F5C54] font-bold">•</span>
-                <span><strong>Throughput:</strong> Handles 10 to 500 readings per second with sub-5ms ML inference.</span>
+                <span><strong>Caching & State:</strong> In-memory dictionary state and Python threading lock synchronization.</span>
               </li>
             </ul>
           </div>
@@ -252,28 +271,78 @@ export default function Architecture() {
           {/* Production Cloud Scale */}
           <div className="p-4 rounded border border-[#16423C] bg-[#FFFFFF] space-y-3">
             <div className="flex items-center justify-between font-bold text-[#16423C]">
-              <span>ENTERPRISE CLOUD ARCHITECTURE</span>
+              <span>RECOMMENDED PRODUCTION CLOUD ARCHITECTURE</span>
               <span className="px-2 py-0.5 rounded bg-[#2E7D32] text-white text-[10px]">1M+ SENSORS</span>
             </div>
             <ul className="space-y-2 text-[#242424]">
               <li className="flex items-start space-x-2">
                 <span className="text-[#2E7D32] font-bold">•</span>
-                <span><strong>Clustering & Load Balancing:</strong> Distributed EMQX or Apache Kafka partitions partitioned by Sensor Hash ID.</span>
+                <span><strong>Broker:</strong> AWS IoT Core / Managed EMQX cluster with mTLS x.509 client certificates and automatic failover.</span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="text-[#2E7D32] font-bold">•</span>
-                <span><strong>Distributed Streaming:</strong> Apache Flink or AWS Kinesis Data Analytics for windowed aggregation.</span>
+                <span><strong>Partitioning:</strong> Apache Kafka / AWS Kinesis partitioned by `device_id` hash ensuring in-order processing per sensor.</span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="text-[#2E7D32] font-bold">•</span>
-                <span><strong>Time-Series & Data Lake:</strong> TimescaleDB for sub-second queries + Amazon S3 / Parquet data lake.</span>
+                <span><strong>Database:</strong> TimescaleDB hypertable partitioning + Amazon S3 cold parquet lake with AWS Athena queries.</span>
               </li>
               <li className="flex items-start space-x-2">
                 <span className="text-[#2E7D32] font-bold">•</span>
-                <span><strong>Orchestration:</strong> Kubernetes (EKS/GKE) with Horizontal Pod Autoscaler (HPA) auto-scaling ML inference pods.</span>
+                <span><strong>Orchestration:</strong> Kubernetes (EKS/GKE) with Horizontal Pod Autoscaler (HPA) scaling ML workers based on KEDA queue depth.</span>
               </li>
             </ul>
           </div>
+        </div>
+
+        {/* Detailed Comparison Table */}
+        <div className="overflow-x-auto pt-2">
+          <table className="w-full text-left text-xs border border-[#E9E2D3] rounded">
+            <thead className="bg-[#F0EBE1] text-[#686868] uppercase text-[10px] border-b border-[#E9E2D3]">
+              <tr>
+                <th className="py-2.5 px-4">Architecture Dimension</th>
+                <th className="py-2.5 px-4 text-[#16423C]">Current Academic Implementation</th>
+                <th className="py-2.5 px-4 text-[#2E7D32]">Recommended Cloud Production</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#E9E2D3] text-[#242424]">
+              <tr>
+                <td className="py-2.5 px-4 font-bold">Ingestion Broker</td>
+                <td className="py-2.5 px-4">Single-node Eclipse Mosquitto (ports 1883/8883)</td>
+                <td className="py-2.5 px-4">AWS IoT Core / Distributed EMQX Cluster (Multi-AZ)</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-4 font-bold">Message Bus / Queuing</td>
+                <td className="py-2.5 px-4">MQTT internal broker queue + in-memory buffers</td>
+                <td className="py-2.5 px-4">Apache Kafka / AWS Kinesis (Partitioned by Device ID hash)</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-4 font-bold">ML Inference Pipeline</td>
+                <td className="py-2.5 px-4">Synchronous in-process Scikit-learn Isolation Forest</td>
+                <td className="py-2.5 px-4">Decoupled ML workers (Triton / TorchServe / ONNX Runtime)</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-4 font-bold">Primary Storage</td>
+                <td className="py-2.5 px-4">PostgreSQL / SQLite with composite time-series indexes</td>
+                <td className="py-2.5 px-4">TimescaleDB hypertables + Amazon RDS Aurora Multi-AZ</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-4 font-bold">Cold Storage / Lake</td>
+                <td className="py-2.5 px-4">Local CSV export endpoints</td>
+                <td className="py-2.5 px-4">Amazon S3 Glacier / Snowflake with Apache Iceberg / Parquet</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-4 font-bold">Distributed Caching</td>
+                <td className="py-2.5 px-4">In-memory Python dictionaries</td>
+                <td className="py-2.5 px-4">Redis Cluster (AWS ElastiCache) for sub-millisecond lookups</td>
+              </tr>
+              <tr>
+                <td className="py-2.5 px-4 font-bold">Scaling Capability</td>
+                <td className="py-2.5 px-4">100 – 500 msg/sec (Vertical host scaling)</td>
+                <td className="py-2.5 px-4">10,000 – 100,000+ msg/sec (K8s HPA auto-scaling)</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
 

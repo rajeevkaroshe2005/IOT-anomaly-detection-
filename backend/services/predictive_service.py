@@ -188,3 +188,6 @@ class PredictiveAnalyticsService:
         }
 
 predictive_service = PredictiveAnalyticsService()
+
+# Backward-compatible alias for CI/CD pipeline and legacy imports
+PredictiveEngine = PredictiveAnalyticsService

@@ -10,21 +10,22 @@ from backend.database.database import get_db
 from backend.database.models import SystemLog, User
 from backend.schemas.schemas import SystemHealthResponse
 from backend.services.system_service import get_full_system_health
-from backend.services.auth_service import require_admin
+from backend.services.auth_service import require_auth, require_admin
 from backend.database.seed_data import seed_database_if_empty
 from backend.database.database import Base, engine
 
 router = APIRouter(prefix="/api/system", tags=["System"])
 
 @router.get("/health", response_model=SystemHealthResponse)
-def get_system_health():
+def get_system_health(current_user: User = Depends(require_auth)):
     return get_full_system_health()
 
 @router.get("/logs")
 def get_system_logs(
     limit: int = Query(100, ge=1, le=500),
     level: Optional[str] = Query(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    admin: User = Depends(require_admin)
 ):
     query = db.query(SystemLog)
     if level:

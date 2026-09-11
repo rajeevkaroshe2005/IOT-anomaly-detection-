@@ -8,9 +8,10 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import desc, asc
 from backend.database.database import get_db
-from backend.database.models import Sensor, SensorReading
+from backend.database.models import Sensor, SensorReading, User
 from backend.schemas.schemas import SensorReadingCreate, SensorReadingResponse
 from backend.services.stream_processor import stream_processor
+from backend.services.auth_service import require_auth, get_current_user, get_user_from_token_str
 
 router = APIRouter(prefix="/api/readings", tags=["Readings"])
 
@@ -19,7 +20,8 @@ def get_readings(
     sensor_id: Optional[int] = Query(None, description="Filter by sensor database ID"),
     limit: int = Query(100, ge=1, le=1000),
     anomalies_only: bool = Query(False),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth)
 ):
     query = db.query(SensorReading)
     if sensor_id is not None:
@@ -35,7 +37,8 @@ def get_sensor_readings(
     sensor_id: int,
     timeframe: str = Query("30m", description="Time window: 1m, 5m, 30m, 1h, 24h, all"),
     limit: int = Query(200, ge=1, le=1000),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth)
 ):
     sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
     if not sensor:
@@ -82,9 +85,18 @@ def direct_ingest_reading(reading: SensorReadingCreate):
 def export_readings_csv(
     sensor_id: Optional[int] = Query(None),
     limit: int = Query(500, ge=1, le=5000),
-    db: Session = Depends(get_db)
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user)
 ):
-    """Exports sensor telemetry to downloadable CSV format."""
+    """Exports sensor telemetry to downloadable CSV format (requires authentication)."""
+    authenticated_user = user or (get_user_from_token_str(token, db) if token else None)
+    if not authenticated_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to export telemetry readings."
+        )
+
     import io
     import csv
     from fastapi.responses import Response

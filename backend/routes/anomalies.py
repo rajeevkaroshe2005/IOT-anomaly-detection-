@@ -9,7 +9,7 @@ from sqlalchemy import desc
 from backend.database.database import get_db
 from backend.database.models import Anomaly, User
 from backend.schemas.schemas import AnomalyResponse
-from backend.services.auth_service import require_admin
+from backend.services.auth_service import require_auth, require_admin, get_current_user, get_user_from_token_str
 
 router = APIRouter(prefix="/api/anomalies", tags=["Anomalies"])
 
@@ -18,7 +18,8 @@ def get_anomalies(
     sensor_id: Optional[int] = Query(None),
     severity: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth)
 ):
     query = db.query(Anomaly)
     if sensor_id is not None:
@@ -45,9 +46,18 @@ def export_anomalies_csv(
     sensor_id: Optional[int] = Query(None),
     severity: Optional[str] = Query(None),
     limit: int = Query(500, ge=1, le=5000),
-    db: Session = Depends(get_db)
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    user: Optional[User] = Depends(get_current_user)
 ):
-    """Exports detected anomalies to downloadable CSV format."""
+    """Exports detected anomalies to downloadable CSV format (requires authentication)."""
+    authenticated_user = user or (get_user_from_token_str(token, db) if token else None)
+    if not authenticated_user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required to export anomalies."
+        )
+
     import io
     import csv
     from datetime import datetime, timezone

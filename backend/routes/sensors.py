@@ -15,7 +15,7 @@ from backend.services.auth_service import require_auth, require_admin
 router = APIRouter(prefix="/api/sensors", tags=["Sensors"])
 
 @router.get("", response_model=List[SensorResponse])
-def list_sensors(db: Session = Depends(get_db)):
+def list_sensors(db: Session = Depends(get_db), user: User = Depends(require_auth)):
     sensors = db.query(Sensor).all()
     results = []
     for s in sensors:
@@ -52,7 +52,7 @@ def create_sensor(sensor_in: SensorCreate, db: Session = Depends(get_db), admin:
     return sensor.to_dict()
 
 @router.get("/{sensor_id}", response_model=SensorResponse)
-def get_sensor(sensor_id: int, db: Session = Depends(get_db)):
+def get_sensor(sensor_id: int, db: Session = Depends(get_db), user: User = Depends(require_auth)):
     sensor = db.query(Sensor).filter(Sensor.id == sensor_id).first()
     if not sensor:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sensor not found")

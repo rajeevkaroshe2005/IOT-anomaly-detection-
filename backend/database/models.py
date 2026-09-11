@@ -111,6 +111,8 @@ class SensorReading(Base):
         }
 
 Index("ix_readings_sensor_timestamp", SensorReading.sensor_id, SensorReading.timestamp)
+Index("ix_readings_sensor_anomaly", SensorReading.sensor_id, SensorReading.is_anomaly)
+Index("ix_readings_timestamp_anomaly", SensorReading.timestamp, SensorReading.is_anomaly)
 
 
 class Anomaly(Base):
@@ -149,6 +151,8 @@ class Anomaly(Base):
             "acknowledged": self.acknowledged
         }
 
+Index("ix_anomalies_sensor_timestamp", Anomaly.sensor_id, Anomaly.timestamp)
+
 
 class Alert(Base):
     __tablename__ = "alerts"
@@ -178,6 +182,9 @@ class Alert(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "resolved_at": self.resolved_at.isoformat() if self.resolved_at else None
         }
+
+Index("ix_alerts_status_created_at", Alert.status, Alert.created_at)
+Index("ix_alerts_sensor_status", Alert.sensor_id, Alert.status)
 
 
 class SystemLog(Base):

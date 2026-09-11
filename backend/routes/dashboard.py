@@ -6,14 +6,18 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from backend.database.database import get_db
-from backend.database.models import Sensor, SensorReading, Alert
+from backend.database.models import Sensor, SensorReading, Alert, User
 from backend.schemas.schemas import DashboardStats
 from backend.services.simulator_service import simulator_service
+from backend.services.auth_service import require_auth
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboard"])
 
 @router.get("/stats", response_model=DashboardStats)
-def get_dashboard_stats(db: Session = Depends(get_db)):
+def get_dashboard_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_auth)
+):
     total_sensors = db.query(Sensor).count()
     online_sensors = db.query(Sensor).filter(Sensor.status == "ONLINE", Sensor.is_enabled == True).count()
     offline_sensors = total_sensors - online_sensors

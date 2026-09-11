@@ -1,9 +1,11 @@
 import React, { createContext, useContext, useEffect, useState, useRef, useCallback } from 'react';
 import { scadaAudio } from '../utils/audioAlert';
+import { useAuth } from './AuthContext';
 
 const WebSocketContext = createContext(null);
 
 export const WebSocketProvider = ({ children }) => {
+  const { token } = useAuth();
   const [isConnected, setIsConnected] = useState(false);
   const [latestReading, setLatestReading] = useState(null);
   const [latestAnomaly, setLatestAnomaly] = useState(null);
@@ -21,11 +23,20 @@ export const WebSocketProvider = ({ children }) => {
   }, []);
 
   const connect = useCallback(() => {
+    if (!token) {
+      if (socketRef.current) {
+        socketRef.current.close();
+        socketRef.current = null;
+      }
+      setIsConnected(false);
+      return;
+    }
+
     // Determine WS protocol and host
     const wsProtocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     // Use backend port 8000 if running on Vite port 5173 / 3000
     const host = window.location.hostname;
-    const wsUrl = `${wsProtocol}//${host}:8000/ws/sensor-data`;
+    const wsUrl = `${wsProtocol}//${host}:8000/ws/sensor-data?token=${encodeURIComponent(token)}`;
 
     try {
       const ws = new WebSocket(wsUrl);
@@ -33,7 +44,7 @@ export const WebSocketProvider = ({ children }) => {
 
       ws.onopen = () => {
         setIsConnected(true);
-        console.log('[WebSocket] Connected to industrial telemetry broker.');
+        console.log('[WebSocket] Connected to industrial telemetry broker with authenticated session.');
       };
 
       ws.onmessage = (event) => {
@@ -65,8 +76,13 @@ export const WebSocketProvider = ({ children }) => {
         }
       };
 
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         setIsConnected(false);
+        // Code 1008 is Policy Violation (invalid/expired JWT) -> halt retry until valid login
+        if (event.code === 1008) {
+          console.warn('[WebSocket] Handshake rejected: Policy Violation (1008). Invalid or missing JWT.');
+          return;
+        }
         // Automatic reconnection backoff
         reconnectTimeoutRef.current = setTimeout(() => {
           connect();
@@ -81,15 +97,27 @@ export const WebSocketProvider = ({ children }) => {
       console.error('[WebSocket] Init error:', e);
       reconnectTimeoutRef.current = setTimeout(connect, 4000);
     }
-  }, []);
+  }, [token]);
 
   useEffect(() => {
-    connect();
+    if (reconnectTimeoutRef.current) {
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+    }
+    if (socketRef.current) {
+      socketRef.current.close();
+      socketRef.current = null;
+    }
+    if (token) {
+      connect();
+    } else {
+      setIsConnected(false);
+    }
     return () => {
       if (socketRef.current) socketRef.current.close();
       if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
     };
-  }, [connect]);
+  }, [token, connect]);
 
   const clearNotification = () => setNotification(null);
 

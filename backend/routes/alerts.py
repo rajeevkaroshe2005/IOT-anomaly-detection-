@@ -10,7 +10,7 @@ from sqlalchemy import desc
 from backend.database.database import get_db
 from backend.database.models import Alert, User
 from backend.schemas.schemas import AlertResponse
-from backend.services.auth_service import require_admin
+from backend.services.auth_service import require_auth, require_admin
 from backend.services.websocket_manager import ws_manager
 
 router = APIRouter(prefix="/api/alerts", tags=["Alerts"])
@@ -21,7 +21,8 @@ def get_alerts(
     status_filter: Optional[str] = Query(None, alias="status"),
     severity: Optional[str] = Query(None),
     limit: int = Query(100, ge=1, le=500),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: User = Depends(require_auth)
 ):
     query = db.query(Alert)
     if sensor_id is not None:

@@ -32,8 +32,17 @@ jobs:
           ALGORITHM: HS256
           DATABASE_URL: sqlite:///./iot_sensor.db
         run: |
-          python -c "import joblib; from backend.ml.ml_model import IsolationForestDetector; print('ML detector imports successfully')"
-          python -c "from backend.services.predictive_service import PredictiveEngine; print('Predictive engine verified')"
+          python -c "import joblib; from backend.ml.ml_model import IsolationForestDetector, AnomalyDetector; print('ML detector imports successfully')"
+          python -c "from backend.services.predictive_service import PredictiveEngine, PredictiveAnalyticsService; print('Predictive engine verified')"
+
+      - name: Run Comprehensive System & Security Verification Suite
+        env:
+          SECRET_KEY: ci_cd_test_secret_key_123456789
+          ALGORITHM: HS256
+          DATABASE_URL: sqlite:///./iot_sensor.db
+          APP_ENV: testing
+        run: |
+          python test_system.py
 
   frontend-build:
     name: Frontend React & Vite Production Build

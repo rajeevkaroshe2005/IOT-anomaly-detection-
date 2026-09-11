@@ -215,43 +215,79 @@ python simulator/sensor_simulator.py --interval 1.5 --anomaly-rate 0.10
 
 ---
 
-## 7. REST API Documentation
+## 7. REST API Documentation & Role-Based Access Control (RBAC)
 
-The FastAPI backend automatically generates interactive Swagger/OpenAPI documentation at `http://localhost:8000/docs`.
+The FastAPI backend automatically generates interactive OpenAPI documentation at `http://localhost:8000/docs`. All protected endpoints strictly validate signed cryptographic JWT bearer tokens.
 
-### Key Endpoints
+### Endpoint Security & Permissions Matrix
 
-| Method | Endpoint | Description | Role Required |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Authenticate and issue JWT bearer token | Public |
-| `GET` | `/api/auth/me` | Retrieve active operator profile | Authenticated |
-| `GET` | `/api/sensors` | List all sensors with live latest readings | Public |
-| `POST` | `/api/sensors` | Register a new industrial sensor node | ADMIN |
-| `GET` | `/api/sensors/{id}` | Retrieve detailed sensor telemetry specs | Public |
-| `PUT` | `/api/sensors/{id}` | Modify sensor name, location, or status | ADMIN |
-| `DELETE` | `/api/sensors/{id}` | Delete sensor node from inventory | ADMIN |
-| `POST` | `/api/sensors/{id}/toggle` | Enable or disable sensor stream | ADMIN |
-| `GET` | `/api/readings` | Query historical sensor telemetry readings | Public |
-| `GET` | `/api/readings/{sensor_id}` | Filter readings by timeframe (`1m`, `5m`, `30m`, `1h`) | Public |
-| `POST` | `/api/readings/ingest` | Direct HTTP fallback ingestion bridge | Public |
-| `GET` | `/api/anomalies` | Query machine learning detected outliers | Public |
-| `GET` | `/api/alerts` | Query active and resolved industrial alerts | Public |
-| `PUT` | `/api/alerts/{id}/resolve` | Mark an alert incident as resolved | ADMIN |
-| `DELETE` | `/api/alerts/{id}` | Delete alert record | ADMIN |
-| `GET` | `/api/dashboard/stats` | Retrieve dynamic system metrics and KPI counters | Public |
-| `GET` | `/api/system/health` | Query health probes for all 6 subsystems | Public |
-| `GET` | `/api/predictive/analytics` | Fleet-wide predictive drift ($dT/dt, dP/dt$) & RUL analysis | Public |
-| `GET` | `/api/predictive/sensor/{id}` | Single sensor degradation trajectory & breach forecast | Public |
-| `GET` | `/api/readings/export/csv` | Stream telemetry readings as CSV spreadsheet | Public |
-| `GET` | `/api/anomalies/export/csv` | Stream anomaly audit log as CSV spreadsheet | Public |
-| `POST` | `/api/simulator/start` | Start background sensor fleet simulation | Public / ADMIN |
-| `POST` | `/api/simulator/stop` | Stop background sensor fleet simulation | Public / ADMIN |
-| `POST` | `/api/simulator/force-anomaly`| Instantly inject an outlier for live evaluation | Public / ADMIN |
-| `WS` | `/ws/sensor-data` | Persistent bidirectional WebSocket telemetry stream | Public |
+| Method | Endpoint | Description | Role Required | Unauthenticated Response |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/auth/login` | Authenticate and issue signed JWT access token | Public | Allowed (`200` / `401`) |
+| `GET` | `/api/auth/me` | Retrieve active operator identity & role | VIEWER / ADMIN | `401 Unauthorized` |
+| `GET` | `/api/dashboard/stats` | Retrieve dynamic system metrics and KPI counters | VIEWER / ADMIN | `401 Unauthorized` |
+| `GET` | `/api/sensors` | List all sensors with live latest readings | VIEWER / ADMIN | `401 Unauthorized` |
+| `GET` | `/api/sensors/{id}` | Retrieve detailed sensor telemetry specs | VIEWER / ADMIN | `401 Unauthorized` |
+| `POST` | `/api/sensors` | Register a new industrial sensor node | **ADMIN Only** | `401` / `403 Forbidden` |
+| `PUT` | `/api/sensors/{id}` | Modify sensor name, location, or status | **ADMIN Only** | `401` / `403 Forbidden` |
+| `DELETE` | `/api/sensors/{id}` | Delete sensor node from inventory | **ADMIN Only** | `401` / `403 Forbidden` |
+| `POST` | `/api/sensors/{id}/toggle` | Enable or disable sensor stream | **ADMIN Only** | `401` / `403 Forbidden` |
+| `GET` | `/api/readings` | Query historical sensor telemetry readings | VIEWER / ADMIN | `401 Unauthorized` |
+| `GET` | `/api/readings/{sensor_id}` | Filter readings by timeframe (`1m`, `5m`, `30m`, `1h`) | VIEWER / ADMIN | `401 Unauthorized` |
+| `POST` | `/api/readings/ingest` | Edge telemetry fallback ingestion bridge | Internal / Edge | `422 Unprocessable` on invalid |
+| `GET` | `/api/anomalies` | Query machine learning detected outliers | VIEWER / ADMIN | `401 Unauthorized` |
+| `PUT` | `/api/anomalies/{id}/acknowledge`| Acknowledge anomaly occurrence | **ADMIN Only** | `401` / `403 Forbidden` |
+| `GET` | `/api/alerts` | Query active and resolved industrial alerts | VIEWER / ADMIN | `401 Unauthorized` |
+| `PUT` | `/api/alerts/{id}/resolve` | Mark an alert incident as resolved | **ADMIN Only** | `401` / `403 Forbidden` |
+| `DELETE` | `/api/alerts/{id}` | Delete alert incident record | **ADMIN Only** | `401` / `403 Forbidden` |
+| `GET` | `/api/predictive/analytics` | Fleet-wide predictive drift ($dT/dt, dP/dt$) & RUL | VIEWER / ADMIN | `401 Unauthorized` |
+| `GET` | `/api/predictive/sensor/{id}` | Single sensor degradation trajectory & forecast | VIEWER / ADMIN | `401 Unauthorized` |
+| `GET` | `/api/system/health` | Query health probes for all 6 subsystems | VIEWER / ADMIN | `401 Unauthorized` |
+| `GET` | `/api/system/logs` | Query diagnostic audit trail logs | **ADMIN Only** | `401` / `403 Forbidden` |
+| `POST` | `/api/system/reset-demo` | Re-seed baseline demonstration data | **ADMIN Only** | `401` / `403 Forbidden` |
+| `GET` | `/api/readings/export/csv` | Stream telemetry readings as CSV spreadsheet | VIEWER / ADMIN (Bearer / `?token=`) | `401 Unauthorized` |
+| `GET` | `/api/anomalies/export/csv` | Stream anomaly audit log as CSV spreadsheet | VIEWER / ADMIN (Bearer / `?token=`) | `401 Unauthorized` |
+| `POST` | `/api/simulator/start` | Start background sensor fleet simulation | **ADMIN Only** | `401` / `403 Forbidden` |
+| `POST` | `/api/simulator/stop` | Stop background sensor fleet simulation | **ADMIN Only** | `401` / `403 Forbidden` |
+| `GET` | `/api/simulator/status` | Query simulator runtime status | VIEWER / ADMIN | `401 Unauthorized` |
+| `POST` | `/api/simulator/force-anomaly`| Instantly inject an outlier for live evaluation | **ADMIN Only** | `401` / `403 Forbidden` |
+| `WS` | `/ws/sensor-data` | Authenticated WebSocket stream (`?token=<JWT>`) | VIEWER / ADMIN | `1008 Policy Violation` |
 
 ---
 
-## 8. Advanced SCADA & Portfolio Enhancements
+## 8. Security Architecture & Hardening Notes
+
+The system adheres to a defense-in-depth security model across 13 core dimensions:
+1. **Zero Hardcoded Secrets:** All credentials, database connection strings, and cryptographic secrets are parameterized via `.env` and `.env.example`.
+2. **Cryptographic JWT Authentication:** All authentication relies on signed HMAC-SHA256 tokens with UTC expiration claims. Legacy development tokens (`'demo_token'`) are firmly rejected with `401 Unauthorized`.
+3. **Strict RBAC Enforcement:** Modifying actions (sensor registration, toggling, alert resolution, simulator process controls) require `ADMIN` privileges. `VIEWER` access is restricted to read-only operations.
+4. **WebSocket Handshake Token Validation:** Browser WebSocket connections pass JWT credentials via `?token=<JWT>` query parameter. Unauthenticated or expired attempts are terminated with WebSocket close code `1008` (Policy Violation).
+5. **Mosquitto MQTT Broker Hardening:** Configured with `allow_anonymous false`, PBKDF2-SHA512 password file (`mosquitto/password_file`), and access control list (`mosquitto/acl_file`) restricting edge sensors exclusively to publishing to `iot/sensors/+`.
+6. **Database Network Isolation:** In Docker Compose, the PostgreSQL database is attached strictly to an internal Docker bridge network (`iot_network`). Host port `5432:5432` has been removed to eliminate external network exposure.
+7. **SQL Injection Prevention:** 100% SQLAlchemy ORM parameterized queries; zero raw SQL string concatenation.
+
+For full architectural audit details, see [`docs/security.md`](docs/security.md).
+
+---
+
+## 9. Scalability: Current Prototype vs. Recommended Production Cloud
+
+| Dimension | Current Academic / Local Implementation | Recommended Production Cloud Architecture |
+| :--- | :--- | :--- |
+| **Ingestion Broker** | Single-node Eclipse Mosquitto (ports 1883/8883) | AWS IoT Core / Distributed EMQX Cluster (Multi-AZ) |
+| **Message Streaming** | In-process Python Paho thread + async queue | Apache Kafka / AWS Kinesis (Partitioned by Device ID hash) |
+| **ML Inference** | Synchronous Scikit-Learn Isolation Forest (<5ms) | Triton Inference Server / TorchServe / Ray on Kubernetes |
+| **Primary Storage** | PostgreSQL / SQLite with composite time-series indexes | TimescaleDB Hypertables + Amazon RDS Aurora Multi-AZ |
+| **Cold Storage Lake** | Local authenticated CSV export endpoints | Amazon S3 Glacier / Snowflake with Apache Iceberg / Parquet |
+| **Distributed Cache** | In-memory Python dictionaries | Redis Cluster (AWS ElastiCache) with sub-ms TTL caching |
+| **Max Throughput** | **100 – 500 msg/sec** on single host node | **10,000 – 100,000+ msg/sec** with horizontal scaling |
+| **Auto-Scaling Strategy** | Manual vertical scaling | Kubernetes HPA (CPU > 70% or Kafka lag > 1,000 messages) |
+
+For comprehensive architectural specifications, see [`docs/architecture.md`](docs/architecture.md).
+
+---
+
+## 10. Advanced SCADA & Portfolio Enhancements
 
 Beyond standard telemetry dashboards, this system integrates enterprise-grade industrial features:
 1. **Interactive 2D Digital Twin Plant Map (`/plant-map`):**
@@ -271,7 +307,7 @@ Beyond standard telemetry dashboards, this system integrates enterprise-grade in
 
 ---
 
-## 9. Academic Project Demonstration Script (14-Step Flow)
+## 11. Academic Project Demonstration Script (14-Step Flow)
 
 To execute the live 10-mark examination demonstration:
 
@@ -294,6 +330,6 @@ To execute the live 10-mark examination demonstration:
 
 ---
 
-## 9. License & Academic Attribution
+## 12. License & Academic Attribution
 
 Developed for academic demonstration and industrial IoT research. Released under the MIT License.

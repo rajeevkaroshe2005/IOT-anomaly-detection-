@@ -21,6 +21,16 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
+def decode_access_token(token: str) -> Optional[dict]:
+    """Decodes and cryptographically validates a JWT token. Returns payload dict or None if invalid/expired."""
+    if not token or not isinstance(token, str):
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        return payload
+    except (jwt.PyJWTError, Exception):
+        return None
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:
@@ -30,3 +40,10 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
+
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+if APP_ENV == "production" and "change-in-production" in SECRET_KEY:
+    import logging
+    logging.getLogger("iot.security").warning(
+        "[SECURITY HAZARD] Production environment running with default SECRET_KEY! Set a custom SECRET_KEY in .env immediately."
+    )
