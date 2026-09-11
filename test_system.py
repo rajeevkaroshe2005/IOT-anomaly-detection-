@@ -180,10 +180,23 @@ def run_all_tests():
         "pressure": 840.0,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
-    ingest_resp = client.post("/api/readings/ingest", json=critical_payload)
+
+    # 5a. Verify /api/readings/ingest strict security:
+    # 1. Unauthenticated -> 401 Unauthorized
+    unauth_ingest = client.post("/api/readings/ingest", json=critical_payload)
+    assert unauth_ingest.status_code == 401, f"Security violation: unauthenticated ingest accepted! Got {unauth_ingest.status_code}"
+    print("  -> Unauthenticated POST /api/readings/ingest correctly rejected (401)")
+
+    # 2. VIEWER role -> 403 Forbidden
+    viewer_ingest = client.post("/api/readings/ingest", json=critical_payload, headers=viewer_headers)
+    assert viewer_ingest.status_code == 403, f"Security violation: VIEWER role permitted to ingest! Got {viewer_ingest.status_code}"
+    print("  -> VIEWER POST /api/readings/ingest correctly rejected (403 Forbidden)")
+
+    # 3. ADMIN role -> 200 OK
+    ingest_resp = client.post("/api/readings/ingest", json=critical_payload, headers=admin_headers)
     assert ingest_resp.status_code == 200
     ingested_data = ingest_resp.json()["data"]
-    print(f"  -> Ingested critical payload: is_anomaly={ingested_data['is_anomaly']}, score={ingested_data['anomaly_score']}")
+    print(f"  -> ADMIN POST /api/readings/ingest allowed (200): is_anomaly={ingested_data['is_anomaly']}, score={ingested_data['anomaly_score']}")
     assert ingested_data["is_anomaly"] is True
 
     # Verify Anomaly Record
@@ -313,8 +326,52 @@ def run_all_tests():
     assert "iot_network" in compose_content, "Missing internal bridge network isolation!"
     print("  -> Docker Compose validates: internal network isolation active, no host DB port exposed.")
 
+    # ---------------------------------------------------------
+    # TEST 10: MQTT Security Configuration & Zero Plaintext Secrets Verification
+    # ---------------------------------------------------------
+    print("\n[TEST 10] Verifying MQTT Hardening & Zero Plaintext Secrets in Repository...")
+    
+    # 10a. Validate Mosquitto broker config
+    mosq_conf_path = os.path.join(os.path.dirname(__file__), "mosquitto", "mosquitto.conf")
+    assert os.path.exists(mosq_conf_path), "mosquitto.conf missing!"
+    with open(mosq_conf_path, "r", encoding="utf-8") as f:
+        mosq_conf = f.read()
+    assert "allow_anonymous false" in mosq_conf, "MQTT security violation: anonymous access enabled!"
+    assert "password_file /mosquitto/config/password_file" in mosq_conf, "MQTT security violation: missing password_file!"
+    assert "acl_file /mosquitto/config/acl_file" in mosq_conf, "MQTT security violation: missing acl_file!"
+    print("  -> Mosquitto configuration verified: anonymous access disabled, password file & ACL enforced.")
+
+    # 10b. Validate Mosquitto password file has zero plaintext credentials
+    pwd_file_path = os.path.join(os.path.dirname(__file__), "mosquitto", "password_file")
+    assert os.path.exists(pwd_file_path), "password_file missing!"
+    with open(pwd_file_path, "r", encoding="utf-8") as f:
+        pwd_file_content = f.read()
+    assert "iot_backend_password_2026" not in pwd_file_content, "Plaintext password found in password_file comments!"
+    assert "iot_simulator_password_2026" not in pwd_file_content, "Plaintext password found in password_file comments!"
+    assert "password_2026" not in pwd_file_content, "Plaintext secret found in password_file!"
+    # Ensure hashed passwords exist
+    assert "iot_backend:$7$" in pwd_file_content, "Missing PBKDF2-SHA512 hashed entry for iot_backend!"
+    assert "iot_simulator:$7$" in pwd_file_content, "Missing PBKDF2-SHA512 hashed entry for iot_simulator!"
+    print("  -> Mosquitto password database verified: zero plaintext credentials, PBKDF2 hashes enforced.")
+
+    # 10c. Validate .env is strictly gitignored
+    gitignore_path = os.path.join(os.path.dirname(__file__), ".gitignore")
+    assert os.path.exists(gitignore_path), ".gitignore file missing!"
+    with open(gitignore_path, "r", encoding="utf-8") as f:
+        gitignore_content = f.read()
+    assert ".env" in gitignore_content, "CRITICAL: .env is not listed in .gitignore!"
+    print("  -> Git configuration verified: .env file is strictly ignored by version control.")
+
+    # 10d. Validate invalid JWT token string is rejected with 401
+    invalid_token_resp = client.get(
+        "/api/dashboard/stats",
+        headers={"Authorization": "Bearer malformed.invalid.token.signature"}
+    )
+    assert invalid_token_resp.status_code == 401, f"Expected 401 for invalid JWT, got {invalid_token_resp.status_code}"
+    print("  -> Forged/invalid JWT signature correctly rejected (401)")
+
     print("\n" + "=" * 75)
-    print("ALL 9 VERIFICATION & SECURITY SUITES COMPLETED WITH 100% SUCCESS!")
+    print("ALL 10 VERIFICATION & SECURITY SUITES COMPLETED WITH 100% SUCCESS!")
     print("=" * 75)
 
 if __name__ == "__main__":

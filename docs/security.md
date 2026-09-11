@@ -75,7 +75,7 @@ The system enforces strict principle-of-least-privilege segregation between two 
 | `POST` | `/api/sensors/{id}/toggle` | Admin (`require_admin`) | `401 Unauthorized` | `403 Forbidden` |
 | `GET` | `/api/readings` | Viewer (`require_auth`) | `401 Unauthorized` | N/A |
 | `GET` | `/api/readings/{sensor_id}` | Viewer (`require_auth`) | `401 Unauthorized` | N/A |
-| `POST` | `/api/readings/ingest` | Edge Ingestion (Internal) | Allowed (Validated) | N/A |
+| `POST` | `/api/readings/ingest` | Admin (`require_admin`) | `401 Unauthorized` | `403 Forbidden` |
 | `GET` | `/api/readings/export/csv` | Viewer (`require_auth` / token) | `401 Unauthorized` | N/A |
 | `GET` | `/api/anomalies` | Viewer (`require_auth`) | `401 Unauthorized` | N/A |
 | `PUT` | `/api/anomalies/{id}/acknowledge` | Admin (`require_admin`) | `401 Unauthorized` | `403 Forbidden` |
@@ -138,8 +138,8 @@ topic readwrite iot/alerts/#
 ```
 This ensures a compromised edge sensor cannot listen to other sensor channels, forge administrative control commands, or eavesdrop on internal alerting queues.
 
-### D. Development Mode Isolation
-A separate `mosquitto/mosquitto.dev.conf` file with `allow_anonymous true` is provided strictly for local non-Docker development, clearly documented as DEV ONLY.
+### D. Hardened Local and Production Broker Profiles
+The broker configuration `mosquitto/mosquitto.conf` strictly enforces `allow_anonymous false` with PBKDF2-SHA512 password and ACL controls for both local Docker and production setups. For production cloud deployments, MQTT over TLS on port 8883 is recommended.
 
 ---
 

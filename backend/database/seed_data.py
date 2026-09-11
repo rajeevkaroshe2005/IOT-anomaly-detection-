@@ -4,6 +4,7 @@ Initializes schema, default admin/viewer users, 5 industrial sensors,
 and pre-populates 150+ realistic readings, anomalies, and alerts.
 """
 
+import os
 from datetime import datetime, timedelta, timezone
 import random
 import logging
@@ -69,24 +70,34 @@ def seed_database_if_empty():
 
     try:
         # 1. Seed Users if not present
-        admin_user = db.query(User).filter(User.username == "admin").first()
+        # In production, configure ADMIN_USERNAME, ADMIN_PASSWORD, VIEWER_USERNAME, and VIEWER_PASSWORD via environment variables.
+        # Fallback credentials below are provided strictly for LOCAL ACADEMIC DEMONSTRATION ONLY and must be overridden in production.
+        admin_username = os.getenv("ADMIN_USERNAME", "admin").strip()
+        admin_password = os.getenv("ADMIN_PASSWORD", "admin123").strip()
+        admin_email = os.getenv("ADMIN_EMAIL", f"{admin_username}@industrial-iot.io").strip()
+
+        viewer_username = os.getenv("VIEWER_USERNAME", "viewer").strip()
+        viewer_password = os.getenv("VIEWER_PASSWORD", "viewer123").strip()
+        viewer_email = os.getenv("VIEWER_EMAIL", f"{viewer_username}@industrial-iot.io").strip()
+
+        admin_user = db.query(User).filter(User.username == admin_username).first()
         if not admin_user:
-            logger.info("Seeding default Administrator user (admin / admin123)...")
+            logger.info("Seeding Initial Administrator user: '%s' (Password securely hashed with PBKDF2-SHA256)...", admin_username)
             db.add(User(
-                username="admin",
-                email="admin@industrial-iot.io",
-                hashed_password=get_password_hash("admin123"),
+                username=admin_username,
+                email=admin_email,
+                hashed_password=get_password_hash(admin_password),
                 role="ADMIN",
                 created_at=datetime.now(timezone.utc)
             ))
 
-        viewer_user = db.query(User).filter(User.username == "viewer").first()
+        viewer_user = db.query(User).filter(User.username == viewer_username).first()
         if not viewer_user:
-            logger.info("Seeding default Viewer user (viewer / viewer123)...")
+            logger.info("Seeding Initial Viewer user: '%s' (Password securely hashed with PBKDF2-SHA256)...", viewer_username)
             db.add(User(
-                username="viewer",
-                email="viewer@industrial-iot.io",
-                hashed_password=get_password_hash("viewer123"),
+                username=viewer_username,
+                email=viewer_email,
+                hashed_password=get_password_hash(viewer_password),
                 role="VIEWER",
                 created_at=datetime.now(timezone.utc)
             ))

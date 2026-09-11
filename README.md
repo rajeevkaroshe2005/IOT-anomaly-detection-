@@ -172,7 +172,10 @@ npm run dev
 ```
 Open **http://localhost:5173** in your browser.
 
-#### 3. Default Demo Credentials
+#### 3. Initial Demo Credentials (DEVELOPMENT / DEMONSTRATION ONLY)
+> [!IMPORTANT]
+> The credentials below are provided strictly for local academic demonstration. For production deployment, configure `ADMIN_PASSWORD` and `VIEWER_PASSWORD` in your `.env` file. Passwords are securely hashed with PBKDF2-SHA256 upon initial database seeding.
+
 | Role | Username | Password | Permissions |
 | :--- | :--- | :--- | :--- |
 | **Administrator** | `admin` | `admin123` | Full CRUD on sensors, resolve alerts, start/stop simulator |
@@ -180,9 +183,9 @@ Open **http://localhost:5173** in your browser.
 
 ---
 
-### Option B: Docker Compose (Production Environment)
+### Option B: Docker Compose (Local / Demonstration Deployment)
 
-To run the complete production stack (React Frontend, FastAPI Backend, PostgreSQL 16, and Eclipse Mosquitto):
+To run the complete containerized demonstration stack (React Frontend, FastAPI Backend, PostgreSQL 16, and Eclipse Mosquitto):
 
 ```bash
 docker compose up --build
@@ -190,8 +193,63 @@ docker compose up --build
 
 - **Web Dashboard:** `http://localhost:3000`
 - **FastAPI Documentation:** `http://localhost:8000/docs`
-- **MQTT Broker:** `localhost:1883`
-- **PostgreSQL:** `localhost:5432`
+- **MQTT Broker (Password Auth):** `localhost:1883`
+- **PostgreSQL Database:** Internally isolated on `iot_network:5432` (no host port exposed)
+
+---
+
+### Production Cloud Deployment
+
+While Docker Compose provides an end-to-end local demonstration environment, an enterprise production cloud deployment separates concerns across resilient, horizontally-scalable cloud-native managed services:
+
+```
+IoT Devices
+    ↓
+MQTT over TLS (Port 8883)
+    ↓
+Authenticated Cloud IoT Broker (AWS IoT Core / EMQX Cluster)
+    ↓
+Message/Streaming Layer (Apache Kafka / AWS Kinesis / Azure Event Hubs / GCP Pub/Sub)
+    ↓
+Scalable Stream Processing Workers (Consumer Groups / Celery / Apache Flink)
+    ↓
+ML Anomaly Detection (Triton Inference Server / Ray Cluster)
+    ↓
+Managed PostgreSQL / Time-Series Database (TimescaleDB / Amazon RDS Aurora Multi-AZ)
+    ↓
+Load-Balanced FastAPI Instances (AWS ALB / Nginx / Kubernetes Ingress)
+    ↓
+Redis Pub/Sub for multi-instance WebSocket broadcasting
+    ↓
+React Dashboard (CloudFront / AWS S3 / Vercel Edge CDN)
+```
+
+#### Current Implementation vs. Recommended Production Architecture
+
+| Component | Current Prototype (Demonstration) | Recommended Production Cloud Architecture |
+| :--- | :--- | :--- |
+| **Edge Ingestion** | Local Eclipse Mosquitto on port 1883 (Password Auth) | Managed MQTT Broker over TLS (port 8883) with X.509 device certificates |
+| **Message Streaming** | In-process Paho MQTT client thread + AsyncIO queue | Distributed event stream: Apache Kafka, AWS Kinesis, Azure Event Hubs, or Google Pub/Sub |
+| **Stream Processing** | Single Python background thread (`stream_processor.py`) | Consumer groups with horizontal auto-scaling worker nodes (Apache Flink / Celery) |
+| **ML Inference** | Embedded Scikit-Learn Isolation Forest in FastAPI (<5ms) | Dedicated microservice or model serving cluster (Triton / TorchServe / Ray Serve) |
+| **Database** | SQLite (embedded) or single PostgreSQL container | Managed PostgreSQL (Amazon RDS / Cloud SQL) with TimescaleDB hypertables & read replicas |
+| **Application Layer** | Single FastAPI process via Uvicorn | Horizontal FastAPI replicas behind an Application Load Balancer / Kubernetes Ingress |
+| **WebSocket Delivery**| In-memory connection manager (`websocket_manager.py`) | Multi-node WebSocket backplane via **Redis Pub/Sub** or AWS API Gateway WebSocket |
+| **Static Frontend** | Local Vite dev server / single Nginx container | Global CDN distribution (AWS CloudFront / Vercel Edge Network) |
+| **Orchestration** | Docker Compose on a single machine | Kubernetes (EKS / GKE / AKS) with Horizontal Pod Autoscaler (HPA) |
+
+#### Horizontal Scalability Limitations & Production Recommendations
+
+> [!WARNING]
+> **Single-Instance WebSocket Limitation**: The current WebSocket manager uses in-memory connection sets (`active_connections = []`) and is designed for a single backend instance. 
+> In a multi-instance production environment behind a round-robin load balancer, a client connected to Instance A would not receive broadcast events triggered on Instance B. For production horizontal scaling, instances must use **Redis Pub/Sub** (or RabbitMQ) as a message broker backplane so that broadcast telemetry published on any backend instance is distributed across all active client WebSockets.
+
+#### Production Scaling Roadmap:
+1. **MQTT Broker Clustering:** Deploy an EMQX or HiveMQ distributed cluster to terminate 100,000+ persistent edge MQTT connections.
+2. **Streaming Ingestion:** Route raw MQTT packets to Apache Kafka partitioned by `hash(device_id)` to guarantee per-device event ordering.
+3. **Decoupled Stream Workers:** Run stateless stream worker pods belonging to a Kafka consumer group to scale ingestion throughput independently of the web API.
+4. **Time-Series Storage:** Implement TimescaleDB or InfluxDB with automatic chunk partitioning, retention policies, and read replicas for high-frequency sensor readings.
+5. **Kubernetes Auto-Scaling:** Utilize Horizontal Pod Autoscalers (HPA) triggering on CPU usage (>70%) or message lag metrics.
 
 ---
 
@@ -232,7 +290,7 @@ The FastAPI backend automatically generates interactive OpenAPI documentation at
 | `POST` | `/api/sensors/{id}/toggle` | Enable or disable sensor stream | **ADMIN Only** | `401` / `403 Forbidden` |
 | `GET` | `/api/readings` | Query historical sensor telemetry readings | VIEWER / ADMIN | `401 Unauthorized` |
 | `GET` | `/api/readings/{sensor_id}` | Filter readings by timeframe (`1m`, `5m`, `30m`, `1h`) | VIEWER / ADMIN | `401 Unauthorized` |
-| `POST` | `/api/readings/ingest` | Edge telemetry fallback ingestion bridge | Internal / Edge | `422 Unprocessable` on invalid |
+| `POST` | `/api/readings/ingest` | Direct HTTP edge telemetry ingestion bridge | **ADMIN Only** | `401` / `403 Forbidden` |
 | `GET` | `/api/anomalies` | Query machine learning detected outliers | VIEWER / ADMIN | `401 Unauthorized` |
 | `PUT` | `/api/anomalies/{id}/acknowledge`| Acknowledge anomaly occurrence | **ADMIN Only** | `401` / `403 Forbidden` |
 | `GET` | `/api/alerts` | Query active and resolved industrial alerts | VIEWER / ADMIN | `401 Unauthorized` |
@@ -255,14 +313,15 @@ The FastAPI backend automatically generates interactive OpenAPI documentation at
 
 ## 8. Security Architecture & Hardening Notes
 
-The system adheres to a defense-in-depth security model across 13 core dimensions:
+The system adheres to a defense-in-depth security model across 14 core dimensions:
 1. **Zero Hardcoded Secrets:** All credentials, database connection strings, and cryptographic secrets are parameterized via `.env` and `.env.example`.
 2. **Cryptographic JWT Authentication:** All authentication relies on signed HMAC-SHA256 tokens with UTC expiration claims. Legacy development tokens (`'demo_token'`) are firmly rejected with `401 Unauthorized`.
 3. **Strict RBAC Enforcement:** Modifying actions (sensor registration, toggling, alert resolution, simulator process controls) require `ADMIN` privileges. `VIEWER` access is restricted to read-only operations.
 4. **WebSocket Handshake Token Validation:** Browser WebSocket connections pass JWT credentials via `?token=<JWT>` query parameter. Unauthenticated or expired attempts are terminated with WebSocket close code `1008` (Policy Violation).
-5. **Mosquitto MQTT Broker Hardening:** Configured with `allow_anonymous false`, PBKDF2-SHA512 password file (`mosquitto/password_file`), and access control list (`mosquitto/acl_file`) restricting edge sensors exclusively to publishing to `iot/sensors/+`.
-6. **Database Network Isolation:** In Docker Compose, the PostgreSQL database is attached strictly to an internal Docker bridge network (`iot_network`). Host port `5432:5432` has been removed to eliminate external network exposure.
-7. **SQL Injection Prevention:** 100% SQLAlchemy ORM parameterized queries; zero raw SQL string concatenation.
+5. **Mosquitto MQTT Broker Hardening:** Configured with `allow_anonymous false`, PBKDF2-SHA512 password file (`mosquitto/password_file`), and access control list (`mosquitto/acl_file`) restricting edge sensors exclusively to publishing to `iot/sensors/+`. Local Docker Compose demonstration uses port 1883 with username/password authentication; production deployment documentation details MQTT over TLS on port 8883 with CA, server cert, and private key verification.
+6. **Authenticated Edge Direct Ingestion:** The direct HTTP ingestion route (`/api/readings/ingest`) is strictly restricted to authenticated `ADMIN` users to prevent unauthenticated injection of fraudulent telemetry data.
+7. **Database Network Isolation:** In Docker Compose, the PostgreSQL database is attached strictly to an internal Docker bridge network (`iot_network`). Host port `5432:5432` has been removed to eliminate external network exposure.
+8. **SQL Injection Prevention:** 100% SQLAlchemy ORM parameterized queries; zero raw SQL string concatenation.
 
 For full architectural audit details, see [`docs/security.md`](docs/security.md).
 

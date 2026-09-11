@@ -11,7 +11,7 @@ from backend.database.database import get_db
 from backend.database.models import Sensor, SensorReading, User
 from backend.schemas.schemas import SensorReadingCreate, SensorReadingResponse
 from backend.services.stream_processor import stream_processor
-from backend.services.auth_service import require_auth, get_current_user, get_user_from_token_str
+from backend.services.auth_service import require_auth, require_admin, get_current_user, get_user_from_token_str
 
 router = APIRouter(prefix="/api/readings", tags=["Readings"])
 
@@ -68,9 +68,13 @@ def get_sensor_readings(
     return [r.to_dict() for r in readings]
 
 @router.post("/ingest", response_model=dict, status_code=status.HTTP_200_OK)
-def direct_ingest_reading(reading: SensorReadingCreate):
+def direct_ingest_reading(
+    reading: SensorReadingCreate,
+    admin: User = Depends(require_admin)
+):
     """
-    Direct HTTP ingestion bridge. Feeds into the same Stream Processing pipeline as MQTT.
+    Direct HTTP ingestion bridge for edge gateways and administrative ingestion.
+    Requires administrative privileges to prevent unauthenticated data injection.
     """
     payload = reading.model_dump()
     result = stream_processor.process_reading(payload)
