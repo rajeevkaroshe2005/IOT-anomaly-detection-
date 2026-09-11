@@ -109,8 +109,21 @@ This project designs and implements an end-to-end, event-driven cyber-physical s
 
 ### Machine Learning
 - **Algorithm:** Isolation Forest (`n_estimators=150`, `contamination=0.05`, `random_state=42`)
+- **Methodology:** Isolation Forest is an unsupervised anomaly detection algorithm that identifies observations that deviate from the learned normal operating distribution without requiring labeled failure datasets.
+- **Features:** 3-dimensional telemetry feature vector $[T, H, P]$:
+  * Temperature ($T$ in °C)
+  * Relative Humidity ($H$ in %)
+  * Atmospheric Pressure ($P$ in hPa)
+- **Training Process:** Trained on baseline nominal multi-sensor industrial distributions (`ml/train_model.py`) with contamination factor set to $0.05$ ($5\%$ expected outlier density).
+- **Inference & Scoring:** Computes decision score via Scikit-Learn `score_samples()`, normalized to a calibrated anomaly score ($0.00$ to $1.00$).
+- **Severity Classification:**
+  * Score $< 0.60$: `NORMAL` (Nominal operation)
+  * Score $0.60 - 0.70$: `LOW`
+  * Score $0.70 - 0.85$: `MEDIUM`
+  * Score $0.85 - 0.95$: `HIGH`
+  * Score $\ge 0.95$: `CRITICAL` (Immediate audio alarm & persistent incident record)
+- **Diagnostic Cause Extraction:** Automatically identifies dominant deviating feature (e.g., `CRITICAL_TEMPERATURE_SPIKE`, `PRESSURE_DEPRESSURIZATION`, `HUMIDITY_SATURATION`).
 - **Libraries:** Scikit-Learn, NumPy, Pandas, Joblib
-- **Outputs:** Anomaly Classification (`NORMAL` / `ANOMALY`), Normalized Anomaly Score (0.00 to 1.00), Severity (`LOW`, `MEDIUM`, `HIGH`, `CRITICAL`), and classification reason
 
 ### IoT & Transport
 - **Protocol:** MQTT (ISO/IEC 20922)
