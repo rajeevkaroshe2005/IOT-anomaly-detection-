@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.abspath(os.path.dirname(__file__)))
 from fastapi.testclient import TestClient
 from backend.main import app
 from backend.database.database import SessionLocal
+from backend.database.seed_data import seed_database_if_empty
 from backend.database.models import Sensor, SensorReading, Anomaly, Alert, User
 from backend.ml.ml_model import ml_detector, IsolationForestDetector
 from backend.services.predictive_service import predictive_service, PredictiveEngine
@@ -32,6 +33,9 @@ def run_all_tests():
     print("=" * 75)
     print("RUNNING INDUSTRIAL SCADA SYSTEM VERIFICATION & SECURITY REGRESSION SUITE")
     print("=" * 75)
+    
+    # Ensure database tables and baseline seeds exist for CI/CD runners
+    seed_database_if_empty()
     
     # ---------------------------------------------------------
     # TEST 1: Database and Seeds
