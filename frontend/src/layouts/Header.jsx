@@ -41,6 +41,10 @@ export default function Header({ setIsSidebarOpen }) {
   }, []);
 
   const handleToggleSimulator = async () => {
+    if (!isAdmin) {
+      alert('Administrative privileges required to control the IoT sensor simulator. Switch to Admin account.');
+      return;
+    }
     setSimLoading(true);
     try {
       if (simRunning) {

@@ -5,6 +5,7 @@ MQTT Ingest -> JSON Validation -> Missing Value Check -> Cleaning ->
 Feature Assembly -> ML Isolation Forest Inference -> Database Commit -> WebSocket Broadcast
 """
 
+import math
 from datetime import datetime, timezone
 import json
 import logging
@@ -40,8 +41,12 @@ class StreamProcessor:
 
     def process_reading(self, payload: dict) -> Optional[Dict[str, Any]]:
         """
-        Executes the full stream processing pipeline.
+        Executes the full stream processing pipeline with strict input validation.
         """
+        if not isinstance(payload, dict):
+            logger.warning(f"[Pipeline Stage 2] Payload is not a JSON object: {type(payload)}")
+            return None
+
         # Step 2: Missing Value / Type Validation
         required_fields = ["device_id", "temperature", "humidity", "pressure"]
         for field in required_fields:
@@ -49,12 +54,32 @@ class StreamProcessor:
                 logger.warning(f"[Pipeline Stage 2] Missing field '{field}' in payload: {payload}")
                 return None
 
-        # Step 3: Data Cleaning & Type Casting
+        # Step 3: Data Cleaning, Type Casting & Boundary Sanitation
         try:
             device_id = str(payload["device_id"]).strip()
+            if not device_id or len(device_id) > 64:
+                logger.warning(f"[Pipeline Stage 3] Invalid device_id length: '{device_id}'")
+                return None
+
             temp = float(payload["temperature"])
             hum = float(payload["humidity"])
             press = float(payload["pressure"])
+
+            # Reject NaN and Infinite values
+            if math.isnan(temp) or math.isinf(temp) or math.isnan(hum) or math.isinf(hum) or math.isnan(press) or math.isinf(press):
+                logger.warning(f"[Pipeline Stage 3] Rejected payload with NaN or Inf: T={temp}, H={hum}, P={press}")
+                return None
+
+            # Enforce physical operating boundary sanity
+            if temp < -50.0 or temp > 150.0:
+                logger.warning(f"[Pipeline Stage 3] Rejected impossible temperature reading: {temp}°C")
+                return None
+            if hum < 0.0 or hum > 100.0:
+                logger.warning(f"[Pipeline Stage 3] Rejected impossible humidity reading: {hum}%")
+                return None
+            if press < 300.0 or press > 1500.0:
+                logger.warning(f"[Pipeline Stage 3] Rejected impossible barometric pressure reading: {press} hPa")
+                return None
             
             raw_ts = payload.get("timestamp")
             if raw_ts:
@@ -68,13 +93,19 @@ class StreamProcessor:
             logger.warning(f"[Pipeline Stage 3] Data cleaning failed for payload: {payload} | Error: {e}")
             return None
 
-        # Step 4 & 5: Feature Preparation & ML Anomaly Detection
-        # Features: [temperature, humidity, pressure]
-        ml_result = ml_detector.predict(temperature=temp, humidity=hum, pressure=press)
-        is_anomaly = ml_result["is_anomaly"]
-        anomaly_score = ml_result["anomaly_score"]
-        severity = ml_result["severity"]
-        reason = ml_result["reason"]
+        # Step 4 & 5: Feature Preparation & ML Anomaly Detection (Fault Tolerant)
+        try:
+            ml_result = ml_detector.predict(temperature=temp, humidity=hum, pressure=press)
+            is_anomaly = ml_result.get("is_anomaly", False)
+            anomaly_score = ml_result.get("anomaly_score", 0.0)
+            severity = ml_result.get("severity", "NORMAL")
+            reason = ml_result.get("reason", "Nominal telemetry vector")
+        except Exception as ml_err:
+            logger.error(f"[Pipeline Stage 5] ML prediction exception: {ml_err}. Falling back to heuristic baseline.", exc_info=True)
+            is_anomaly = (temp > 60.0 or temp < 10.0 or hum < 20.0 or hum > 85.0 or press < 950.0 or press > 1050.0)
+            anomaly_score = 0.85 if is_anomaly else 0.15
+            severity = "CRITICAL" if (temp > 85.0 or press < 880.0) else ("HIGH" if is_anomaly else "NORMAL")
+            reason = "Heuristic safety trigger (ML service fallback)"
 
         # Step 6: Database Storage
         db: Session = SessionLocal()

@@ -30,14 +30,14 @@ services:
     networks:
       - iot_network
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-iot_admin}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-iot_secure_password_2026}
-      POSTGRES_DB: ${POSTGRES_DB:-iot_monitoring_db}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     # Database is strictly isolated on iot_network (no host port 5432 exposed)
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-iot_admin} -d ${POSTGRES_DB:-iot_monitoring_db}"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -63,11 +63,11 @@ services:
       - HOST=0.0.0.0
       - PORT=8000
       - SECRET_KEY=${SECRET_KEY}
-      - DATABASE_URL=postgresql://${POSTGRES_USER:-iot_admin}:${POSTGRES_PASSWORD:-iot_secure_password_2026}@postgres:5432/${POSTGRES_DB:-iot_monitoring_db}
+      - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       - MQTT_BROKER=mosquitto
       - MQTT_PORT=1883
-      - MQTT_USERNAME=${MQTT_USERNAME:-iot_backend}
-      - MQTT_PASSWORD=${MQTT_PASSWORD:-iot_backend_password_2026}
+      - MQTT_USERNAME=${MQTT_USERNAME}
+      - MQTT_PASSWORD=${MQTT_PASSWORD}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174
       - SIMULATOR_AUTORUN=True
     ports:

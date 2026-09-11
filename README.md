@@ -1,8 +1,6 @@
 # Cloud-Based Real-Time IoT Sensor Monitoring & Anomaly Detection System
 
-A complete, production-grade, cloud-architected industrial telemetry and anomaly detection web application. Built for academic excellence (10-mark evaluation) and real-world industrial monitoring.
-
-![System Architecture](https://raw.githubusercontent.com/username/project/main/docs/architecture_banner.png)
+A complete, cloud-ready prototype and architectural reference for industrial IoT sensor telemetry monitoring, unsupervised Isolation Forest anomaly detection, and real-time SCADA visualization. Designed to satisfy academic requirements while providing an extensible template for enterprise cloud scaling.
 
 ---
 
@@ -280,8 +278,12 @@ For full architectural audit details, see [`docs/security.md`](docs/security.md)
 | **Primary Storage** | PostgreSQL / SQLite with composite time-series indexes | TimescaleDB Hypertables + Amazon RDS Aurora Multi-AZ |
 | **Cold Storage Lake** | Local authenticated CSV export endpoints | Amazon S3 Glacier / Snowflake with Apache Iceberg / Parquet |
 | **Distributed Cache** | In-memory Python dictionaries | Redis Cluster (AWS ElastiCache) with sub-ms TTL caching |
+| **WebSocket Broadcasting** | In-memory FastAPI ConnectionManager (single-node) | Redis Pub/Sub / AWS API Gateway WebSocket with ElastiCache |
 | **Max Throughput** | **100 – 500 msg/sec** on single host node | **10,000 – 100,000+ msg/sec** with horizontal scaling |
 | **Auto-Scaling Strategy** | Manual vertical scaling | Kubernetes HPA (CPU > 70% or Kafka lag > 1,000 messages) |
+
+> [!NOTE]
+> **Horizontal Scaling Architecture Consideration**: The academic prototype's FastAPI WebSocket manager maintains active client socket references in memory. In a distributed multi-node production deployment with a load balancer, instances must be decoupled using a Redis Pub/Sub or RabbitMQ broker backplane so broadcast telemetry reaches clients regardless of which node terminates their WebSocket connection.
 
 For comprehensive architectural specifications, see [`docs/architecture.md`](docs/architecture.md).
 

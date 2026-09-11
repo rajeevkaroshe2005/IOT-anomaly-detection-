@@ -26,14 +26,21 @@ Outputs:
 
 import os
 import logging
+from typing import Optional
 import numpy as np
 import joblib
 
 logger = logging.getLogger("iot.ml")
 
 class AnomalyDetector:
-    def __init__(self, model_path: str = "backend/ml/isolation_forest_model.joblib"):
-        self.model_path = model_path
+    def __init__(self, model_path: Optional[str] = None):
+        if model_path:
+            self.model_path = model_path
+        else:
+            self.model_path = os.getenv(
+                "ML_MODEL_PATH",
+                os.path.join(os.path.dirname(__file__), "isolation_forest_model.joblib")
+            )
         self.model = None
         self.is_loaded = False
         self.load_or_train()
@@ -41,14 +48,23 @@ class AnomalyDetector:
     def load_or_train(self):
         """Loads trained Isolation Forest model or triggers automated on-the-fly training if missing."""
         try:
-            if os.path.exists(self.model_path):
-                self.model = joblib.load(self.model_path)
+            target_path = self.model_path
+            if not os.path.exists(target_path):
+                # Check module-relative path as fallback
+                module_dir_path = os.path.join(os.path.dirname(__file__), "isolation_forest_model.joblib")
+                if os.path.exists(module_dir_path):
+                    target_path = module_dir_path
+
+            if os.path.exists(target_path):
+                self.model = joblib.load(target_path)
+                self.model_path = target_path
                 self.is_loaded = True
-                logger.info(f"Isolation Forest model loaded successfully from {self.model_path}")
+                logger.info(f"Isolation Forest model loaded successfully from {target_path}")
             else:
-                logger.warning(f"Model file '{self.model_path}' not found. Training baseline model...")
+                logger.warning(f"Model file '{target_path}' not found. Training baseline model...")
                 from ml.train_model import train_and_export_model
-                self.model = train_and_export_model(self.model_path)
+                self.model = train_and_export_model(target_path)
+                self.model_path = target_path
                 self.is_loaded = True
                 logger.info("Fresh Isolation Forest model trained and loaded successfully.")
         except Exception as e:

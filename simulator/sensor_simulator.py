@@ -82,7 +82,7 @@ class IoTSensorSimulator:
         self.anomaly_rate = anomaly_rate
         self.api_fallback_url = api_fallback_url
         self.username = username if username is not None else os.getenv("MQTT_USERNAME", "iot_simulator").strip()
-        self.password = password if password is not None else os.getenv("MQTT_PASSWORD", "iot_simulator_password_2026").strip()
+        self.password = password if password is not None else os.getenv("MQTT_PASSWORD", "").strip()
 
         self.mqtt_connected = False
         self.is_running = False

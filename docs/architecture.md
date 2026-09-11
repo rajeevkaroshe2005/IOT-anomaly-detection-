@@ -265,8 +265,9 @@ While the local prototype utilizes an in-process pipeline for zero-configuration
    - **Composite Indices**: `CREATE INDEX ix_sensor_timestamp ON sensor_readings (sensor_id, timestamp DESC);` ensures sub-millisecond retrieval for dashboard charts.
    - **Time-Series Partitioning**: Partitioning tables into daily or weekly chunks (e.g., via PostgreSQL declarative table partitioning or TimescaleDB hypertables) allows continuous drop of old partitions without locking tables or executing costly `DELETE` statements.
 
-3. **In-Memory Caching & Push Fanout**:
-   Utilizing **Redis Pub/Sub** or **RabbitMQ** enables horizontal scaling of WebSocket server pods: when an anomaly occurs, the stream processor publishes to Redis, which fans out to all active WebSocket instances serving connected operators.
+3. **In-Memory Caching & Push Fanout (Current vs. Multi-Node Cloud Scale)**:
+   - **Current Implementation Limitation:** The current in-memory WebSocket manager (`backend/services/websocket_manager.py`) stores active client sockets in a local Python in-memory set (`Set[WebSocket]`). While optimal and low-latency for single-node prototypes (~100 to 500 msg/sec), **it is not horizontally scalable across multiple server instances or containers**. If multiple FastAPI replicas are deployed behind a load balancer, clients connected to Pod A would miss broadcasts generated on Pod B.
+   - **Recommended Production Scaling:** Multi-node horizontal scaling requires a distributed fanout message bus such as **Redis Pub/Sub** (AWS ElastiCache Redis) or **RabbitMQ**. In this architecture, when an ingestion worker detects an anomaly or commits a reading, it publishes the event to a Redis channel (`events:telemetry`). All active FastAPI WebSocket worker pods subscribe to the Redis channel and forward the event to their locally connected browser clients, achieving seamless horizontal scalability to thousands of concurrent operators.
 
 ---
 

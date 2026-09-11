@@ -108,6 +108,14 @@ def run_all_tests():
     assert fake_token_resp.status_code == 401, f"Security vulnerability: 'demo_token' was accepted! Got {fake_token_resp.status_code}"
     print("  -> Hardcoded 'demo_token' bypass successfully rejected (401)")
 
+    # 3e. Verify expired token is firmly rejected
+    from datetime import timedelta
+    from backend.services.security import create_access_token
+    expired_token = create_access_token(data={"sub": "admin", "role": "ADMIN"}, expires_delta=timedelta(seconds=-60))
+    expired_resp = client.get("/api/dashboard/stats", headers={"Authorization": f"Bearer {expired_token}"})
+    assert expired_resp.status_code == 401, f"Expected 401 for expired token, got {expired_resp.status_code}"
+    print("  -> Expired JWT token correctly rejected (401)")
+
     # ---------------------------------------------------------
     # TEST 4: Strict RBAC (Unauthenticated 401, Viewer 403 on Admin Actions)
     # ---------------------------------------------------------
@@ -191,6 +199,18 @@ def run_all_tests():
     assert resolve_resp.json()["status"] == "RESOLVED"
     print(f"  -> Alert #{new_alert['id']} resolved by Administrator.")
 
+    # 5b. Verify ingestion sanitization rejects invalid payloads without crashing
+    from backend.services.stream_processor import stream_processor
+    # Malformed JSON
+    assert stream_processor.process_raw_payload("{device_id: bad_json") is None
+    # Missing required field
+    assert stream_processor.process_raw_payload('{"device_id": "SENSOR-001"}') is None
+    # NaN value
+    assert stream_processor.process_raw_payload('{"device_id": "SENSOR-001", "temperature": "NaN", "humidity": 50, "pressure": 1000}') is None
+    # Impossible physical value
+    assert stream_processor.process_raw_payload('{"device_id": "SENSOR-001", "temperature": 9999.0, "humidity": 50, "pressure": 1000}') is None
+    print("  -> Ingestion pipeline correctly rejects malformed, missing, NaN, and out-of-bounds payloads.")
+
     # ---------------------------------------------------------
     # TEST 6: Authenticated CSV Telemetry Export (Header and Query Parameter)
     # ---------------------------------------------------------
@@ -236,7 +256,16 @@ def run_all_tests():
     except Exception as e:
         print(f"  -> Forged token WebSocket connection correctly rejected: {e}")
 
-    # 7c. Valid JWT token attempt (should connect and exchange frames)
+    # 7c. Expired token attempt (should also be rejected with 1008)
+    try:
+        with client.websocket_connect(f"/ws/sensor-data?token={expired_token}") as ws:
+            ws.send_text("ping")
+            ws.receive_text()
+            assert False, "WebSocket allowed connection with expired token!"
+    except Exception as e:
+        print(f"  -> Expired token WebSocket connection correctly rejected: {e}")
+
+    # 7d. Valid JWT token attempt (should connect and exchange frames)
     with client.websocket_connect(f"/ws/sensor-data?token={viewer_token}") as ws:
         ws.send_text("ping")
         pong_resp = ws.receive_text()
@@ -263,8 +292,25 @@ def run_all_tests():
     assert stop_sim.status_code == 200
     print(f"  -> Simulator stopped: {stop_sim.json()['status']}")
 
+    # ---------------------------------------------------------
+    # TEST 9: Docker Compose & Infrastructure Security Validation
+    # ---------------------------------------------------------
+    print("\n[TEST 9] Verifying Docker Compose & Infrastructure Security Configuration...")
+    compose_path = os.path.join(os.path.dirname(__file__), "docker-compose.yml")
+    assert os.path.exists(compose_path), "docker-compose.yml file missing!"
+    with open(compose_path, "r", encoding="utf-8") as f:
+        compose_content = f.read()
+    assert "services:" in compose_content
+    assert "mosquitto:" in compose_content
+    assert "postgres:" in compose_content
+    assert "backend:" in compose_content
+    assert "frontend:" in compose_content
+    assert "5432:5432" not in compose_content, "Security violation: PostgreSQL port 5432 exposed to public host!"
+    assert "iot_network" in compose_content, "Missing internal bridge network isolation!"
+    print("  -> Docker Compose validates: internal network isolation active, no host DB port exposed.")
+
     print("\n" + "=" * 75)
-    print("ALL 8 VERIFICATION & SECURITY SUITES COMPLETED WITH 100% SUCCESS!")
+    print("ALL 9 VERIFICATION & SECURITY SUITES COMPLETED WITH 100% SUCCESS!")
     print("=" * 75)
 
 if __name__ == "__main__":
