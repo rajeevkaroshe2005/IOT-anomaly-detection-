@@ -346,10 +346,11 @@ def run_all_tests():
     assert os.path.exists(pwd_file_path), "password_file missing!"
     with open(pwd_file_path, "r", encoding="utf-8") as f:
         pwd_file_content = f.read()
-    assert "iot_backend_password_2026" not in pwd_file_content, "Plaintext password found in password_file comments!"
-    assert "iot_simulator_password_2026" not in pwd_file_content, "Plaintext password found in password_file comments!"
-    assert "password_2026" not in pwd_file_content, "Plaintext secret found in password_file!"
-    # Ensure hashed passwords exist
+    for line in pwd_file_content.splitlines():
+        if line.strip().startswith("#"):
+            assert "iot_" not in line and "password_20" not in line, "Plaintext credential leak in comment!"
+        elif line.strip():
+            assert ":$7$" in line, "Un-hashed plaintext credential found in password_file!"
     assert "iot_backend:$7$" in pwd_file_content, "Missing PBKDF2-SHA512 hashed entry for iot_backend!"
     assert "iot_simulator:$7$" in pwd_file_content, "Missing PBKDF2-SHA512 hashed entry for iot_simulator!"
     print("  -> Mosquitto password database verified: zero plaintext credentials, PBKDF2 hashes enforced.")

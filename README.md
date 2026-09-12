@@ -327,7 +327,7 @@ The FastAPI backend automatically generates interactive OpenAPI documentation at
 ## 8. Security Architecture & Hardening Notes
 
 The system adheres to a defense-in-depth security model across 14 core dimensions:
-1. **Zero Hardcoded Secrets:** All credentials, database connection strings, and cryptographic secrets are parameterized via `.env` and `.env.example`.
+1. **Zero Hardcoded Secrets:** All credentials, database connection strings, and cryptographic secrets are parameterized via `.env` and `.env.example`. Initial database seed credentials check `ADMIN_PASSWORD` and `VIEWER_PASSWORD` environment variables before falling back to clearly labeled local academic demonstration defaults.
 2. **Cryptographic JWT Authentication:** All authentication relies on signed HMAC-SHA256 tokens with UTC expiration claims. Legacy development tokens (`'demo_token'`) are firmly rejected with `401 Unauthorized`.
 3. **Strict RBAC Enforcement:** Modifying actions (sensor registration, toggling, alert resolution, simulator process controls) require `ADMIN` privileges. `VIEWER` access is restricted to read-only operations.
 4. **WebSocket Handshake Token Validation:** Browser WebSocket connections pass JWT credentials via `?token=<JWT>` query parameter. Unauthenticated or expired attempts are terminated with WebSocket close code `1008` (Policy Violation).
@@ -400,7 +400,7 @@ To execute the live 10-mark examination demonstration:
 10. **Step 11 - Alert Generation:** Show the alert count incrementing in the top pill and in the Recent Alerts widget.
 11. **Step 12 - Anomalies Page:** Open `Anomalies`. Inspect the table with timestamp, readings, score, and severity.
 12. **Step 13 - Scalability Explanation:** Reference Section 18 of the Architecture page; explain Kafka partitions, horizontal pod scaling, and time-series hypertables.
-13. **Step 14 - Security Explanation:** Highlight JWT token generation, role segregation (Admin vs Viewer), parameterized queries, and TLS encryption.
+13. **Step 14 - Security Explanation:** Explain MQTT authentication in the local deployment and describe MQTT over TLS (port 8883) as the recommended production configuration, alongside JWT token generation, role segregation (Admin vs Viewer), and parameterized ORM queries.
 
 ---
 
