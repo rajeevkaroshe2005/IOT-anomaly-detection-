@@ -20,6 +20,7 @@ const SUBSYSTEM_ICONS = {
   'FastAPI REST Server': Server,
   'Database Layer': Database,
   'MQTT Message Broker': Radio,
+  'AWS IoT Core Broker': Radio,
   'ML Isolation Forest Engine': Brain,
   'WebSocket Broadcaster': Zap,
   'IoT Sensor Simulator': Cpu,

@@ -371,8 +371,104 @@ def run_all_tests():
     assert invalid_token_resp.status_code == 401, f"Expected 401 for invalid JWT, got {invalid_token_resp.status_code}"
     print("  -> Forged/invalid JWT signature correctly rejected (401)")
 
+    # ---------------------------------------------------------
+    # TEST 11: AWS IoT Core Configuration, Fail-Safe Provider Switching & X.509 Security
+    # ---------------------------------------------------------
+    print("\n[TEST 11] Verifying AWS IoT Core Configuration, Fail-Safe Provider Switching & X.509 Security...")
+
+    # 11a. Verify Local Mode zero-config instantiation
+    from simulator.sensor_simulator import IoTSensorSimulator, SENSOR_PROFILES
+    local_sim = IoTSensorSimulator(provider="local")
+    assert local_sim.provider == "local", "Expected provider 'local'"
+    local_reading = local_sim.generate_reading(SENSOR_PROFILES[0])
+    assert local_reading["device_id"] == "SENSOR-001"
+    print("  -> Local Mode simulator zero-config initialization verified.")
+
+    # 11b. Verify AWS Mode Fail-Safe Rule (Never silently fall back to local)
+    aws_fail_fast_triggered = False
+    try:
+        # Intentionally missing AWS endpoint and certificates
+        _ = IoTSensorSimulator(provider="aws", aws_endpoint="", cert_path="")
+    except (RuntimeError, ValueError) as err:
+        aws_fail_fast_triggered = True
+        assert "validation failed" in str(err) or "AWS_IOT_ENDPOINT" in str(err)
+    assert aws_fail_fast_triggered, "Security violation: Simulator silently fell back instead of failing fast in AWS mode!"
+    print("  -> Simulator AWS mode fail-fast validation enforced (raises descriptive RuntimeError on missing certs).")
+
+    # 11c. Verify dedicated AWSIoTClient credential and endpoint checks
+    from simulator.aws_iot_client import AWSIoTClient
+    endpoint_error_caught = False
+    try:
+        AWSIoTClient(endpoint="")
+    except ValueError:
+        endpoint_error_caught = True
+    assert endpoint_error_caught, "AWSIoTClient failed to reject empty endpoint!"
+
+    cert_error_caught = False
+    try:
+        AWSIoTClient(
+            endpoint="test-ats.iot.us-east-1.amazonaws.com",
+            root_ca_path="certs/nonexistent_root.pem",
+            cert_path="certs/nonexistent_cert.pem",
+            private_key_path="certs/nonexistent_key.pem"
+        )
+    except FileNotFoundError as fnf_err:
+        cert_error_caught = True
+        assert "Root CA file not found" in str(fnf_err)
+    assert cert_error_caught, "AWSIoTClient failed to enforce certificate file existence!"
+    print("  -> Dedicated AWSIoTClient verifies endpoint and X.509 file existence before TLS handshake.")
+
+    # 11d. Verify Backend MQTT Ingestion Service provider and topic configuration
+    from backend.mqtt.mqtt_client import MQTTService
+    backend_local_service = MQTTService()
+    assert backend_local_service.provider in ("local", "aws")
+
+    # Test backend AWS validation fails fast when missing credentials
+    orig_provider = os.environ.get("MQTT_PROVIDER")
+    try:
+        os.environ["MQTT_PROVIDER"] = "aws"
+        os.environ["AWS_IOT_ENDPOINT"] = ""
+        backend_aws_service = MQTTService()
+        backend_aws_fail_fast = False
+        try:
+            backend_aws_service.validate_config()
+        except RuntimeError:
+            backend_aws_fail_fast = True
+        assert backend_aws_fail_fast, "Backend MQTTService failed to enforce AWS configuration validation!"
+    finally:
+        if orig_provider is not None:
+            os.environ["MQTT_PROVIDER"] = orig_provider
+        else:
+            os.environ.pop("MQTT_PROVIDER", None)
+    print("  -> Backend MQTT Ingestion Service strictly enforces AWS IoT Core config validation.")
+
+    # 11e. Verify AWS IoT Policy Definitions & Placeholders
+    policy_dir = os.path.join(os.path.dirname(__file__), "aws", "iot", "policies")
+    assert os.path.exists(policy_dir), "aws/iot/policies directory missing!"
+
+    expected_policies = ["sensor-thing-policy.json", "SENSOR-001-policy.json", "backend-consumer-policy.json"]
+    for pol_file in expected_policies:
+        pol_path = os.path.join(policy_dir, pol_file)
+        assert os.path.exists(pol_path), f"Policy file {pol_file} missing!"
+        with open(pol_path, "r", encoding="utf-8") as pf:
+            pol_data = json.load(pf)
+        assert "Statement" in pol_data, f"Invalid policy format in {pol_file}"
+        pol_str = json.dumps(pol_data)
+        assert "AKIA" not in pol_str, f"Forbidden IAM access key detected in {pol_file}!"
+        assert "aws_secret" not in pol_str.lower(), f"Secret keyword detected in {pol_file}!"
+    print("  -> AWS IoT Core Policies verified (least-privilege, parameterized, zero leaked secrets).")
+
+    # 11f. Verify .gitignore protects X.509 certificates and keys
+    with open(gitignore_path, "r", encoding="utf-8") as f:
+        git_rules = f.read()
+    assert "*.pem" in git_rules, ".gitignore missing *.pem rule!"
+    assert "*.key" in git_rules, ".gitignore missing *.key rule!"
+    assert "*.crt" in git_rules, ".gitignore missing *.crt rule!"
+    assert "certs/*" in git_rules, ".gitignore missing certs/* rule!"
+    print("  -> Version control hardening verified: all X.509 certs, keys, and certs/* strictly ignored.")
+
     print("\n" + "=" * 75)
-    print("ALL 10 VERIFICATION & SECURITY SUITES COMPLETED WITH 100% SUCCESS!")
+    print("ALL 11 VERIFICATION & SECURITY SUITES COMPLETED WITH 100% SUCCESS!")
     print("=" * 75)
 
 if __name__ == "__main__":

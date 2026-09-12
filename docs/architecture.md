@@ -100,7 +100,9 @@ The implemented platform features an end-to-end event-driven architecture compri
    Emulates continuous physical processes using a stochastic Markovian drift model. Simulates continuous Gaussian walk with mean-reverting pull towards physical baselines. Injects controlled multivariate anomalies (e.g. Boiler overheating >95°C, humidity drop <10%, vacuum depressurization <880 hPa).
 
 2. **MQTT Transport (`backend/mqtt/mqtt_client.py`)**:
-   Employs the Paho MQTT client operating in a non-blocking daemon thread. Handles dynamic network reconnects and subscribes to topic wildcard `iot/sensors/+`.
+   Employs the Paho MQTT client operating in a resilient background daemon thread. Supports dual operating modes:
+   - **Local Mode (`MQTT_PROVIDER=local`)**: Connects to Eclipse Mosquitto on port 1883 and subscribes to `iot/sensors/+`.
+   - **AWS Cloud Mode (`MQTT_PROVIDER=aws`)**: Establishes TLS v1.2 mutual authentication (X.509 client certificate & private key) on port 8883 with AWS IoT Core and subscribes to `industrial/sensors/+/telemetry`. Fail-fast validation prevents silent configuration drift.
 
 3. **Stream Processor (`backend/services/stream_processor.py`)**:
    Decoupled pipeline adhering to the single-responsibility principle. Processes raw string payloads through syntactic validation, type-casting, feature scaling, model scoring, persistence, and client notification.

@@ -20,7 +20,19 @@ This project designs and implements an end-to-end, event-driven cyber-physical s
 
 ## 2. Core System Architecture & Data Flow
 
+The system supports two production-ready operating modes selected via the `MQTT_PROVIDER` environment variable:
+
 ```
+┌────────────────────────────────────────────────────────────────────────────────────────┐
+│                               OPERATING MODE ARCHITECTURE                               │
+├────────────────────────────────────────────────────────────────────────────────────────┤
+│ 1. LOCAL DEVELOPMENT MODE (Default: MQTT_PROVIDER=local)                               │
+│    Edge Simulator ──(Port 1883)──> Mosquitto Broker ──> Stream Processor ──> ML/DB/UI  │
+│                                                                                        │
+│ 2. AWS CLOUD MODE (MQTT_PROVIDER=aws)                                                  │
+│    Edge Simulator ──(Port 8883, TLS v1.2 mTLS)──> AWS IoT Core ──> Ingest Service ──> ML/DB/UI │
+└────────────────────────────────────────────────────────────────────────────────────────┘
+
                       +-------------------+
                       |    IoT Sensors    |
                       | Temperature       |
@@ -28,18 +40,16 @@ This project designs and implements an end-to-end, event-driven cyber-physical s
                       | Pressure          |
                       +---------+---------+
                                 |
-                                | MQTT (iot/sensors/+)
-                                v
-                      +-------------------+
-                      |    IoT Gateway    |
-                      | Authentication    |
-                      +---------+---------+
-                                |
-                                v
-                      +-------------------+
-                      |   Message Broker  |
-                      | MQTT (Mosquitto)  |
-                      +---------+---------+
+               +----------------+----------------+
+               | (MQTT_PROVIDER=local)           | (MQTT_PROVIDER=aws)
+               | Port 1883 (Local)               | Port 8883 (mTLS X.509)
+               v                                 v
+      +------------------+             +-------------------+
+      | Eclipse Mosquitto|             |   AWS IoT Core    |
+      | iot/sensors/+    |             | industrial/sen... |
+      +--------+---------+             +---------+---------+
+               |                                 |
+               +----------------+----------------+
                                 |
                                 v
                       +-------------------+
@@ -73,11 +83,12 @@ This project designs and implements an end-to-end, event-driven cyber-physical s
 
 ### Complete End-to-End Data Flow
 
-1. **IoT Sensor Simulator** (`simulator/sensor_simulator.py`) generates multi-sensor telemetry every 1.5 seconds with Markovian drift and occasional stochastic anomalies.
-2. Telemetry packets are published to MQTT broker topic `iot/sensors/<device_id>`.
-3. **Paho MQTT Ingestion Client** (`backend/mqtt/mqtt_client.py`) receives packets asynchronously.
-4. **Stream Processor** (`backend/services/stream_processor.py`) parses JSON, validates missing values, and assembles the feature vector $[T, H, P]$.
-5. **Isolation Forest Model** (`backend/ml/ml_model.py`) evaluates the vector, computing normalized anomaly scores and severity.
+1. **IoT Sensor Simulator** (`simulator/sensor_simulator.py`) generates multi-sensor telemetry every 1.5 seconds with Markovian drift and stochastic anomaly injection.
+   - **Local Mode:** Publishes to `iot/sensors/<device_id>` on Mosquitto (port 1883).
+   - **AWS Cloud Mode:** Publishes to `industrial/sensors/<device_id>/telemetry` on AWS IoT Core (port 8883, TLS v1.2 mTLS). (See [AWS IoT Setup Guide](aws/README.md)).
+2. **MQTT Ingestion Client** (`backend/mqtt/mqtt_client.py`) subscribes to sensor streams asynchronously.
+3. **Stream Processor** (`backend/services/stream_processor.py`) parses JSON, validates missing values, and assembles the feature vector $[T, H, P]$.
+4. **Isolation Forest Model** (`backend/ml/ml_model.py`) evaluates the vector, computing normalized anomaly scores and severity.
 6. Readings, anomalies, and active alerts are committed to **Database** (`backend/database/`).
 7. **WebSocket Manager** (`backend/services/websocket_manager.py`) broadcasts events to all active browser sessions.
 8. **React SCADA Dashboard** automatically updates KPI counters, charts, and alert banners in real time.
@@ -277,10 +288,19 @@ The simulator emulates 5 industrial sensor nodes:
 
 ### How to Run the Simulator:
 1. **Via Web Dashboard (Turnkey):** Simply click the **"START SIMULATION"** button located in the top navigation bar or the Admin Control Deck.
-2. **Via Standalone CLI:**
+2. **Via Standalone CLI (Local Mosquitto Mode):**
 ```bash
-python simulator/sensor_simulator.py --interval 1.5 --anomaly-rate 0.10
+python simulator/sensor_simulator.py --provider local --interval 1.5 --anomaly-rate 0.10
 ```
+3. **Via Standalone CLI (AWS Cloud Mode):**
+```bash
+# Ensure certs exist in certs/ and environment variables are set in .env
+python simulator/sensor_simulator.py --provider aws --interval 1.5 --anomaly-rate 0.10
+
+# Target a specific IoT Thing:
+python simulator/sensor_simulator.py --provider aws --device SENSOR-001
+```
+For complete AWS IoT setup instructions, refer to [AWS IoT Core Cloud Integration Guide](aws/README.md).
 
 ---
 

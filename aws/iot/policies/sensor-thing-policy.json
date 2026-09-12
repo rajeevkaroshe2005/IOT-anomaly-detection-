@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "iot:Connect",
+      "Resource": "arn:aws:iot:<region>:<account-id>:client/iot-simulator-${iot:Connection.Thing.ThingName}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": "iot:Publish",
+      "Resource": "arn:aws:iot:<region>:<account-id>:topic/industrial/sensors/${iot:Connection.Thing.ThingName}/telemetry"
+    }
+  ]
+}

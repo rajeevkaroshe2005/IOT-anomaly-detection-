@@ -19,6 +19,15 @@ ENV/
 .env
 !.env.example
 
+# X.509 TLS Certificates, Keys & Cloud Credentials
+*.pem
+*.crt
+*.key
+*.csr
+certs/*
+!certs/README.md
+!certs/.gitkeep
+
 # Node.js & Frontend build artifacts
 node_modules/
 frontend/node_modules/
