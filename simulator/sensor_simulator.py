@@ -260,20 +260,39 @@ class IoTSensorSimulator:
         }
         return reading
 
+    def get_publish_topic(self, device_id: str) -> str:
+        """
+        Generates a concrete publish topic for a specific sensor.
+        Guarantees that wildcards ('+' or '#') are strictly forbidden.
+        """
+        clean_id = (device_id or "").strip()
+        if not clean_id:
+            raise ValueError("Device ID cannot be empty.")
+        if "+" in clean_id or "#" in clean_id:
+            raise ValueError(f"Device ID '{clean_id}' cannot contain MQTT wildcards ('+' or '#').")
+
+        if self.provider == "aws":
+            topic = f"industrial/sensors/{clean_id}/telemetry"
+        else:
+            topic = f"iot/sensors/{clean_id}"
+
+        if "+" in topic or "#" in topic:
+            raise ValueError(f"Publish topic '{topic}' cannot contain wildcard characters ('+' or '#').")
+        return topic
+
     def publish_single(self, reading: dict) -> bool:
         payload_str = json.dumps(reading)
         dev_id = reading["device_id"]
         published = False
+        topic = self.get_publish_topic(dev_id)
 
         if self.provider == "aws":
-            # AWS Cloud Mode: Publish to industrial/sensors/{device_id}/telemetry
-            topic = f"industrial/sensors/{dev_id}/telemetry"
+            # AWS Cloud Mode: Publish to concrete topic industrial/sensors/{device_id}/telemetry
             client = self.aws_clients.get(dev_id)
             if client:
                 published = client.publish(topic, payload_str, qos=1)
         else:
-            # Local Development Mode: Publish to iot/sensors/{device_id}
-            topic = f"iot/sensors/{dev_id}"
+            # Local Development Mode: Publish to concrete topic iot/sensors/{device_id}
             if self.client:
                 try:
                     published = self.client.publish(topic, payload_str, qos=1)

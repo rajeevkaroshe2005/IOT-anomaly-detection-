@@ -416,11 +416,95 @@ def run_all_tests():
     assert missing_config_rejected, "Security failure: Missing AWS endpoint did not raise an error!"
     print("  -> [3/8] Missing AWS configuration fail-fast validation enforced.")
 
-    # 4. Correct AWS topic generation
+    # 4. Strict topic separation & verification that no publish operation uses '+' or '#'
+    from backend.mqtt.mqtt_client import get_sensor_publish_topic, MQTTService
+
+    # Verify concrete publish topics for all sensors across providers
     for s_id in ["SENSOR-001", "SENSOR-002", "SENSOR-003", "SENSOR-004", "SENSOR-005"]:
-        expected_topic = f"industrial/sensors/{s_id}/telemetry"
-        assert expected_topic.startswith("industrial/sensors/") and expected_topic.endswith("/telemetry")
-    print("  -> [4/8] Correct AWS topic generation verified ('industrial/sensors/{sensor_id}/telemetry').")
+        aws_pub_topic = get_sensor_publish_topic(s_id, provider="aws")
+        assert aws_pub_topic == f"industrial/sensors/{s_id}/telemetry"
+        assert "+" not in aws_pub_topic and "#" not in aws_pub_topic, f"Wildcard in AWS publish topic: {aws_pub_topic}"
+
+        local_pub_topic = get_sensor_publish_topic(s_id, provider="local")
+        assert local_pub_topic == f"iot/sensors/{s_id}"
+        assert "+" not in local_pub_topic and "#" not in local_pub_topic, f"Wildcard in Local publish topic: {local_pub_topic}"
+
+    # Verify simulator get_publish_topic generates concrete topics without wildcards
+    from simulator.sensor_simulator import IoTSensorSimulator, SENSOR_PROFILES
+    with tempfile.TemporaryDirectory() as tmp_sim_dir:
+        ca_sim = os.path.join(tmp_sim_dir, "root.pem")
+        cert_sim = os.path.join(tmp_sim_dir, "cert.pem")
+        key_sim = os.path.join(tmp_sim_dir, "key.pem")
+        for p in (ca_sim, cert_sim, key_sim):
+            with open(p, "w") as f:
+                f.write("mock")
+
+        with patch("paho.mqtt.client.Client.tls_set"), patch("paho.mqtt.client.Client.tls_insecure_set"):
+            sim_aws = IoTSensorSimulator(
+                provider="aws",
+                aws_endpoint="mock.iot.us-east-1.amazonaws.com",
+                root_ca_path=ca_sim,
+                cert_path=cert_sim,
+                private_key_path=key_sim
+            )
+            sim_local_inst = IoTSensorSimulator(provider="local")
+            for s_id in ["SENSOR-001", "SENSOR-002", "SENSOR-003", "SENSOR-004", "SENSOR-005"]:
+                top_aws = sim_aws.get_publish_topic(s_id)
+                assert top_aws == f"industrial/sensors/{s_id}/telemetry"
+                assert "+" not in top_aws and "#" not in top_aws
+
+                top_loc = sim_local_inst.get_publish_topic(s_id)
+                assert top_loc == f"iot/sensors/{s_id}"
+                assert "+" not in top_loc and "#" not in top_loc
+
+            # Verify that attempting to publish with '+' or '#' raises ValueError in all clients & helpers
+            for bad_topic in [
+                "industrial/sensors/+/telemetry",
+                "industrial/sensors/#",
+                "iot/sensors/+",
+                "iot/sensors/#",
+                "bad/+/topic/#"
+            ]:
+                # AWSIoTClient.publish rejection test
+                try:
+                    aws_client.publish(bad_topic, '{"test": 1}')
+                    assert False, f"Security/Protocol violation: AWSIoTClient allowed publish to wildcard topic '{bad_topic}'"
+                except ValueError:
+                    pass
+
+                # LocalMQTTClient.publish rejection test
+                try:
+                    local_client.publish(bad_topic, '{"test": 1}')
+                    assert False, f"Security/Protocol violation: LocalMQTTClient allowed publish to wildcard topic '{bad_topic}'"
+                except ValueError:
+                    pass
+
+            # Verify sensor ID with wildcards is strictly rejected by helpers
+            for bad_sensor_id in ["SENSOR-+", "SENSOR/#", "+", "#", "DEV/+"]:
+                try:
+                    get_sensor_publish_topic(bad_sensor_id, provider="aws")
+                    assert False, f"get_sensor_publish_topic allowed invalid sensor_id '{bad_sensor_id}'"
+                except ValueError:
+                    pass
+                try:
+                    sim_aws.get_publish_topic(bad_sensor_id)
+                    assert False, f"IoTSensorSimulator.get_publish_topic allowed invalid sensor_id '{bad_sensor_id}'"
+                except ValueError:
+                    pass
+
+    # Verify backend subscription topic retains '+' for wildcard multi-sensor fan-in
+    with patch.dict(os.environ, {"MQTT_PROVIDER": "aws"}):
+        backend_aws = MQTTService()
+        assert backend_aws.subscribe_topic == "industrial/sensors/+/telemetry"
+        assert "+" in backend_aws.subscribe_topic
+        assert "{sensor_id}" in backend_aws.publish_topic_template
+
+    with patch.dict(os.environ, {"MQTT_PROVIDER": "local"}):
+        backend_local = MQTTService()
+        assert backend_local.subscribe_topic == "iot/sensors/+"
+        assert "+" in backend_local.subscribe_topic
+
+    print("  -> [4/8] Strict topic separation verified: 0 publish operations allow '+' or '#'; subscription topics retain '+'.")
 
     # 5. Sensor ID mapping across SENSOR-001 through SENSOR-005
     from simulator.sensor_simulator import SENSOR_PROFILES, IoTSensorSimulator

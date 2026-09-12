@@ -76,7 +76,15 @@ class LocalMQTTClient:
             logger.info(f"Local broker at {self.broker}:{self.port} not currently reachable ({conn_err}).")
 
     def publish(self, topic: str, payload: str, qos: int = 1) -> bool:
-        """Publishes a payload to the given topic."""
+        """
+        Publishes a payload to the given topic.
+        Guarantees that MQTT publish topics are strictly concrete (no '+' or '#').
+        """
+        if not topic or not topic.strip():
+            raise ValueError("Local MQTT publish topic cannot be empty.")
+        if "+" in topic or "#" in topic:
+            raise ValueError(f"Local MQTT publish topic cannot contain wildcard characters ('+' or '#'). Got: '{topic}'")
+
         if not self.client:
             return False
         try:

@@ -137,7 +137,15 @@ class AWSIoTClient:
             return False
 
     def publish(self, topic: str, payload: str, qos: int = 1) -> bool:
-        """Publishes a JSON payload to the specified AWS IoT topic."""
+        """
+        Publishes a JSON payload to the specified AWS IoT topic.
+        Guarantees that MQTT publish topics are strictly concrete (no '+' or '#').
+        """
+        if not topic or not topic.strip():
+            raise ValueError("AWS IoT publish topic cannot be empty.")
+        if "+" in topic or "#" in topic:
+            raise ValueError(f"AWS IoT publish topic cannot contain wildcard characters ('+' or '#'). Got: '{topic}'")
+
         if not self.client:
             return False
         try:

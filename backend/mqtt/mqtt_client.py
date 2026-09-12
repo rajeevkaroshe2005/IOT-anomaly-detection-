@@ -18,6 +18,28 @@ from backend.services.stream_processor import stream_processor
 
 logger = logging.getLogger("iot.mqtt")
 
+def get_sensor_publish_topic(sensor_id: str, provider: str = "local") -> str:
+    """
+    Generates a concrete MQTT publish topic for a specific sensor ID.
+    Enforces that MQTT wildcard characters ('+' or '#') are strictly forbidden in publish topics.
+    """
+    clean_id = (sensor_id or "").strip()
+    if not clean_id:
+        raise ValueError("Sensor ID cannot be empty.")
+    if "+" in clean_id or "#" in clean_id:
+        raise ValueError(f"Sensor ID '{clean_id}' cannot contain MQTT wildcards ('+' or '#').")
+
+    if provider == "aws":
+        template = os.getenv("AWS_IOT_PUBLISH_TOPIC_TEMPLATE", "industrial/sensors/{sensor_id}/telemetry")
+        topic = template.format(sensor_id=clean_id)
+    else:
+        prefix = os.getenv("MQTT_TOPIC_PREFIX", "iot/sensors/").rstrip("/")
+        topic = f"{prefix}/{clean_id}"
+
+    if "+" in topic or "#" in topic:
+        raise ValueError(f"MQTT publish topic '{topic}' cannot contain wildcard characters ('+' or '#').")
+    return topic
+
 class MQTTService:
     def __init__(self):
         self.provider = os.getenv("MQTT_PROVIDER", "local").lower().strip()
@@ -29,7 +51,17 @@ class MQTTService:
             self.broker = os.getenv("AWS_IOT_ENDPOINT", "").strip()
             self.port = int(os.getenv("AWS_IOT_PORT", "8883"))
             self.keepalive = int(os.getenv("AWS_IOT_KEEPALIVE", "60"))
-            self.topic = os.getenv("AWS_IOT_TOPIC", "industrial/sensors/+/telemetry")
+            # Subscription topic filter (wildcards allowed only for subscribing)
+            self.subscribe_topic = (
+                os.getenv("AWS_IOT_SUBSCRIBE_TOPIC", "")
+                or os.getenv("AWS_IOT_TOPIC", "")
+                or "industrial/sensors/+/telemetry"
+            ).strip()
+            self.topic = self.subscribe_topic
+            self.publish_topic_template = os.getenv(
+                "AWS_IOT_PUBLISH_TOPIC_TEMPLATE",
+                "industrial/sensors/{sensor_id}/telemetry"
+            ).strip()
             self.client_id = os.getenv("AWS_IOT_BACKEND_CLIENT_ID", "iot-fastapi-backend-consumer").strip()
             self.root_ca_path = os.getenv("AWS_IOT_ROOT_CA_PATH", "").strip()
             self.cert_path = (os.getenv("AWS_IOT_BACKEND_CERT_PATH", "") or os.getenv("AWS_IOT_CERT_PATH", "")).strip()
@@ -41,7 +73,9 @@ class MQTTService:
             self.broker = os.getenv("MQTT_BROKER", "localhost").strip()
             self.port = int(os.getenv("MQTT_PORT", "1883"))
             self.keepalive = int(os.getenv("MQTT_KEEPALIVE", "60"))
-            self.topic = os.getenv("MQTT_TOPIC_PREFIX", "iot/sensors/") + "+"
+            self.subscribe_topic = (os.getenv("MQTT_TOPIC_PREFIX", "iot/sensors/").rstrip("/") + "/+").strip()
+            self.topic = self.subscribe_topic
+            self.publish_topic_template = os.getenv("MQTT_TOPIC_PREFIX", "iot/sensors/").rstrip("/") + "/{sensor_id}"
             self.client_id = os.getenv("MQTT_CLIENT_ID", "iot_fastapi_backend_consumer").strip()
             self.username = os.getenv("MQTT_USERNAME", "").strip()
             self.password = os.getenv("MQTT_PASSWORD", "").strip()
@@ -213,7 +247,7 @@ class MQTTService:
     def publish_reading(self, device_id: str, payload_str: str) -> bool:
         """Helper to publish telemetry to the broker if needed."""
         if self.client and self.is_connected:
-            topic = f"industrial/sensors/{device_id}/telemetry" if self.provider == "aws" else f"iot/sensors/{device_id}"
+            topic = get_sensor_publish_topic(device_id, provider=self.provider)
             self.client.publish(topic, payload_str, qos=1)
             return True
         return False
