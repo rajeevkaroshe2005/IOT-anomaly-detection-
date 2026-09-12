@@ -14,17 +14,18 @@ import json
 import random
 import argparse
 from datetime import datetime, timezone
-import paho.mqtt.client as mqtt
 
 # Ensure project root is in python path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 try:
-    from simulator.aws_iot_client import AWSIoTClient
+    from simulator.mqtt_client import get_simulator_mqtt_client, LocalMQTTClient, AWSIoTClient
 except ImportError:
     try:
-        from aws_iot_client import AWSIoTClient
+        from mqtt_client import get_simulator_mqtt_client, LocalMQTTClient, AWSIoTClient
     except ImportError:
+        get_simulator_mqtt_client = None
+        LocalMQTTClient = None
         AWSIoTClient = None
 
 try:
@@ -137,28 +138,20 @@ class IoTSensorSimulator:
             self._init_local_mqtt()
 
     def _init_local_mqtt(self):
-        """Initializes standard local Mosquitto MQTT publisher."""
+        """Initializes standard local Mosquitto MQTT publisher via LocalMQTTClient."""
         try:
-            if hasattr(mqtt, "CallbackAPIVersion"):
-                self.client = mqtt.Client(
-                    callback_api_version=mqtt.CallbackAPIVersion.VERSION2,
+            if LocalMQTTClient:
+                self.client = LocalMQTTClient(
+                    broker=self.broker,
+                    port=self.port,
+                    username=self.username,
+                    password=self.password,
                     client_id="iot_simulator_publisher"
                 )
+                self.client.connect(timeout=60)
+                self.mqtt_connected = self.client.is_connected
             else:
-                self.client = mqtt.Client(client_id="iot_simulator_publisher")
-
-            if self.username and self.password:
-                self.client.username_pw_set(self.username, self.password)
-
-            self.client.on_connect = self._on_local_connect
-            self.client.on_disconnect = self._on_local_disconnect
-            
-            # Non-blocking connection attempt
-            try:
-                self.client.connect(self.broker, self.port, 60)
-                self.client.loop_start()
-            except Exception as conn_err:
-                print(f"[SIMULATOR] Note: MQTT Broker at {self.broker}:{self.port} not reachable ({conn_err}). Will use HTTP Ingest Bridge.")
+                print("[SIMULATOR] Note: LocalMQTTClient not loaded. Ingestion fallback active.")
         except Exception as e:
             print(f"[SIMULATOR] Local MQTT initialization error: {e}")
 
@@ -220,19 +213,6 @@ class IoTSensorSimulator:
 
         self.mqtt_connected = any(c.is_connected for c in self.aws_clients.values())
 
-    def _on_local_connect(self, client, userdata, flags, rc, *args):
-        rc_val = getattr(rc, "value", rc)
-        if rc_val == 0:
-            self.mqtt_connected = True
-            print(f"[SIMULATOR] Connected to local MQTT broker at {self.broker}:{self.port}")
-        else:
-            self.mqtt_connected = False
-            print(f"[SIMULATOR] MQTT Connection returned code: {rc_val}")
-
-    def _on_local_disconnect(self, client, userdata, rc, *args):
-        self.mqtt_connected = False
-        print("[SIMULATOR] Disconnected from local MQTT broker.")
-
     def generate_reading(self, sensor_profile: dict, force_anomaly: bool = False) -> dict:
         dev_id = sensor_profile["device_id"]
         state = self.drift_state[dev_id]
@@ -289,18 +269,14 @@ class IoTSensorSimulator:
             # AWS Cloud Mode: Publish to industrial/sensors/{device_id}/telemetry
             topic = f"industrial/sensors/{dev_id}/telemetry"
             client = self.aws_clients.get(dev_id)
-            if client and client.is_connected:
-                published = client.publish(topic, payload_str, qos=1)
-            elif client:
-                # Attempt publish if client exists
+            if client:
                 published = client.publish(topic, payload_str, qos=1)
         else:
             # Local Development Mode: Publish to iot/sensors/{device_id}
             topic = f"iot/sensors/{dev_id}"
-            if self.mqtt_connected and self.client:
+            if self.client:
                 try:
-                    res = self.client.publish(topic, payload_str, qos=1)
-                    published = (res.rc == 0)
+                    published = self.client.publish(topic, payload_str, qos=1)
                 except Exception:
                     published = False
 
@@ -332,9 +308,9 @@ class IoTSensorSimulator:
                 for sensor in sensors:
                     reading = self.generate_reading(sensor)
                     success = self.publish_single(reading)
-                    
+
                     status_flag = "[ANOMALY]" if (reading["temperature"] > 50 or reading["humidity"] < 20 or reading["pressure"] < 950) else "[NORMAL] "
-                    transport = f"AWS-MQTT" if self.provider == "aws" else ("MQTT" if self.mqtt_connected else "HTTP")
+                    transport = "AWS-MQTT" if self.provider == "aws" else ("MQTT" if (self.client and self.client.is_connected) else "HTTP")
                     print(f"[{reading['timestamp'][11:19]}] {status_flag} {reading['device_id']} | T={reading['temperature']:>5.1f}°C | H={reading['humidity']:>5.1f}% | P={reading['pressure']:>6.1f}hPa | Via: {transport} ({'OK' if success else 'WAIT'})")
                     time.sleep(self.interval / len(sensors))
 
@@ -359,7 +335,6 @@ class IoTSensorSimulator:
         else:
             if self.client:
                 try:
-                    self.client.loop_stop()
                     self.client.disconnect()
                 except Exception:
                     pass

@@ -1,0 +1,13 @@
+{
+  "sql": "SELECT device_id, temperature, humidity, pressure, timestamp, topic() AS source_topic FROM 'industrial/sensors/+/telemetry' WHERE temperature > 50 OR humidity < 20 OR pressure < 950",
+  "ruleDisabled": false,
+  "awsIotSqlVersion": "2016-03-23",
+  "description": "Optional event-driven rule: invokes Lambda when physical anomaly thresholds are exceeded for CloudWatch alerting/SNS notification.",
+  "actions": [
+    {
+      "lambda": {
+        "functionArn": "arn:aws:lambda:<region>:<account-id>:function:IndustrialTelemetryEventHandler"
+      }
+    }
+  ]
+}

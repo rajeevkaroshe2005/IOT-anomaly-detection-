@@ -20,18 +20,40 @@ This project designs and implements an end-to-end, event-driven cyber-physical s
 
 ## 2. Core System Architecture & Data Flow
 
-The system supports two production-ready operating modes selected via the `MQTT_PROVIDER` environment variable:
+The system supports two operating modes selected via the `MQTT_PROVIDER` environment variable, connecting to the central stream processing and ML anomaly detection pipeline:
 
 ```
-┌────────────────────────────────────────────────────────────────────────────────────────┐
-│                               OPERATING MODE ARCHITECTURE                               │
-├────────────────────────────────────────────────────────────────────────────────────────┤
-│ 1. LOCAL DEVELOPMENT MODE (Default: MQTT_PROVIDER=local)                               │
-│    Edge Simulator ──(Port 1883)──> Mosquitto Broker ──> Stream Processor ──> ML/DB/UI  │
-│                                                                                        │
-│ 2. AWS CLOUD MODE (MQTT_PROVIDER=aws)                                                  │
-│    Edge Simulator ──(Port 8883, TLS v1.2 mTLS)──> AWS IoT Core ──> Ingest Service ──> ML/DB/UI │
-└────────────────────────────────────────────────────────────────────────────────────────┘
+==========================================================================================
+                                  OPERATING ARCHITECTURES
+==========================================================================================
+
+1. LOCAL DEPLOYMENT (Default: MQTT_PROVIDER=local)
+   Simulator
+   └──> Mosquitto Broker (Port 1883)
+        └──> Stream Processor
+             └──> Isolation Forest ML
+                  └──> PostgreSQL / SQLite
+                       └──> FastAPI
+                            └──> React Dashboard
+
+2. AWS DEPLOYMENT (MQTT_PROVIDER=aws)
+   Simulator
+   └──> AWS IoT Core (Port 8883, TLS v1.2 mTLS with X.509)
+        └──> Stream Processor
+             └──> Isolation Forest ML
+                  └──> PostgreSQL / SQLite
+                       └──> FastAPI
+                            └──> React Dashboard
+
+3. OPTIONAL CLOUD SERVICES (Event-Driven Cloud Extensions)
+   AWS IoT Core
+   ├──> AWS IoT Topic Rule ──> Amazon S3 (Raw Telemetry Historical Archive)
+   ├──> AWS IoT Topic Rule ──> AWS Lambda (Event Notifier & CloudWatch EMF Metrics)
+   └──> Amazon CloudWatch (Broker Metrics, Operational Alarms, Logs)
+==========================================================================================
+
+> [!NOTE]
+> **Prototype Deployment Note**: In this academic prototype, the FastAPI application, Isolation Forest model, PostgreSQL database, and React dashboard run on the local host or containerized Docker environment, while AWS IoT Core provides the managed cloud message ingestion and security layer. Refer to [AWS Setup Guide](aws/README.md) for full configuration.
 
                       +-------------------+
                       |    IoT Sensors    |

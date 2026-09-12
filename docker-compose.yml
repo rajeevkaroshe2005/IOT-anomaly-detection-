@@ -64,12 +64,16 @@ services:
       - PORT=8000
       - SECRET_KEY=${SECRET_KEY}
       - DATABASE_URL=postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      - MQTT_PROVIDER=${MQTT_PROVIDER:-local}
       - MQTT_BROKER=mosquitto
       - MQTT_PORT=1883
       - MQTT_USERNAME=${MQTT_USERNAME}
       - MQTT_PASSWORD=${MQTT_PASSWORD}
       - CORS_ORIGINS=http://localhost:3000,http://localhost:5173,http://localhost:5174,http://127.0.0.1:3000,http://127.0.0.1:5173,http://127.0.0.1:5174
       - SIMULATOR_AUTORUN=True
+    # Optional: For running AWS Cloud Mode inside Docker, mount host certs directory (read-only):
+    # volumes:
+    #   - ./certs:/app/certs:ro
     ports:
       - "8000:8000"
 

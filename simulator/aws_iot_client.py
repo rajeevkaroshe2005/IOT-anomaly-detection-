@@ -1,11 +1,12 @@
 """
 AWS IoT Core Dedicated MQTT Client
 Handles secure mutual TLS (mTLS) X.509 communication on port 8883 with AWS IoT Core.
-Enforces client identity separation, strict certificate validation, and clean logging.
+Enforces client identity separation, strict certificate validation, exponential backoff, and clean logging.
 """
 
 import os
 import ssl
+import time
 import logging
 import paho.mqtt.client as mqtt
 
@@ -14,6 +15,7 @@ logger = logging.getLogger("iot.simulator.aws")
 class AWSIoTClient:
     """
     Dedicated MQTT client for AWS IoT Core using TLS v1.2 and X.509 mutual authentication.
+    Supports exponential backoff reconnects and prevents secret exposure.
     """
     def __init__(
         self,
@@ -24,7 +26,7 @@ class AWSIoTClient:
         private_key_path: str = None,
         client_id: str = "iot-simulator-default"
     ):
-        if not endpoint:
+        if not endpoint or not endpoint.strip():
             raise ValueError("AWS IoT endpoint cannot be empty.")
 
         self.endpoint = endpoint.strip()
@@ -34,6 +36,10 @@ class AWSIoTClient:
         self.private_key_path = os.path.abspath(private_key_path) if private_key_path else None
         self.client_id = client_id.strip()
 
+        # Reconnect parameters with exponential backoff
+        self.reconnect_delay = 1.0
+        self.max_reconnect_delay = 60.0
+
         # Validate certificate file existence
         self._validate_credentials()
 
@@ -41,6 +47,9 @@ class AWSIoTClient:
         self.is_connected = False
         self.published_count = 0
         self._init_client()
+
+    def __repr__(self):
+        return f"<AWSIoTClient client_id={self.client_id} endpoint={self.endpoint}:{self.port} connected={self.is_connected}>"
 
     def _validate_credentials(self):
         """Verifies that all required X.509 certificate files exist before attempting TLS handshake."""
@@ -93,6 +102,7 @@ class AWSIoTClient:
         rc_val = getattr(rc, "value", rc)
         if rc_val == 0:
             self.is_connected = True
+            self.reconnect_delay = 1.0  # Reset backoff on successful connect
             logger.info(f"Connected to AWS IoT Core ({self.endpoint}:{self.port}) as '{self.client_id}'")
         else:
             self.is_connected = False
@@ -100,18 +110,31 @@ class AWSIoTClient:
 
     def _on_disconnect(self, client, userdata, rc, *args):
         self.is_connected = False
-        logger.warning(f"Disconnected from AWS IoT Core ({self.endpoint}:{self.port})")
+        logger.warning(f"Disconnected from AWS IoT Core ({self.endpoint}:{self.port}). rc: {rc}")
 
     def _on_publish(self, client, userdata, mid, *args):
         self.published_count += 1
 
-    def connect(self, timeout: int = 60):
-        """Initiates TLS connection to AWS IoT Core and begins background network loop."""
+    def connect(self, timeout: int = 60) -> bool:
+        """
+        Initiates TLS connection to AWS IoT Core and begins background network loop.
+        Applies non-fatal error handling so temporary network unavailability does not crash callers.
+        """
         if not self.client:
             self._init_client()
         logger.info(f"Connecting to AWS IoT Core at {self.endpoint}:{self.port} (Client ID: {self.client_id})...")
-        self.client.connect(self.endpoint, self.port, keepalive=timeout)
-        self.client.loop_start()
+        try:
+            self.client.connect(self.endpoint, self.port, keepalive=timeout)
+            self.client.loop_start()
+            return True
+        except Exception as e:
+            logger.warning(
+                f"Initial connection to AWS IoT Core ({self.endpoint}:{self.port}) failed: {e}. "
+                f"Next retry backoff: {self.reconnect_delay:.1f}s."
+            )
+            # Increase exponential backoff for subsequent retries
+            self.reconnect_delay = min(self.reconnect_delay * 2.0, self.max_reconnect_delay)
+            return False
 
     def publish(self, topic: str, payload: str, qos: int = 1) -> bool:
         """Publishes a JSON payload to the specified AWS IoT topic."""

@@ -1,0 +1,15 @@
+{
+  "sql": "SELECT *, topic() AS source_topic, timestamp() AS arrival_timestamp FROM 'industrial/sensors/+/telemetry'",
+  "ruleDisabled": false,
+  "awsIotSqlVersion": "2016-03-23",
+  "description": "Optional archival rule: routes raw IoT telemetry from AWS IoT Core directly into Amazon S3 bucket partitioned by sensor and date.",
+  "actions": [
+    {
+      "s3": {
+        "roleArn": "arn:aws:iam::<account-id>:role/IndustrialIoTIoTRuleS3Role",
+        "bucketName": "<your-s3-telemetry-archive-bucket>",
+        "key": "raw-telemetry/${topic(3)}/${parse_time(\"yyyy/MM/dd\", timestamp())}/${timestamp()}.json"
+      }
+    }
+  ]
+}
